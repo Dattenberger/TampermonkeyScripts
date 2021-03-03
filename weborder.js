@@ -35,7 +35,7 @@
         rows.toArray().map(row)
     }
 
-    if(!!jQuery)
+    if(!jQuery)
         loadJquery(pricing)
     else
         pricing();
