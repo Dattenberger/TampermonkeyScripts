@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqWebOrderOptimizer
-// @namespace    http://tampermonkey.net/
-// @version      3
+// @namespace    https://github.com/lukasdatte/HusqWebOrder
+// @version      3.0.1
 // @description  try to take over the world!
 // @author       You
 // @match        http://weborder.husqvarna.com/*basket/basket_view_header.jsp
@@ -93,7 +93,7 @@
         jQuery("#datte-reload").click((e) => {
             start();
         });
-        start()
+        //start()
     }
     jQuery( document ).ready(firstStep);
 })();
