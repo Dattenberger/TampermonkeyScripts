@@ -1,4 +1,15 @@
-(async function () {
+// ==UserScript==
+// @name         HusqWebOrderOptimizer
+// @namespace    http://tampermonkey.net/
+// @version      1
+// @description  try to take over the world!
+// @author       You
+// @match        http://weborder.husqvarna.com/*
+// @grant        none
+// ==/UserScript==
+
+
+(function () {
     function loadJquery(callback) {
         const script = document.createElement("SCRIPT");
         script.src = '//code.jquery.com/jquery-latest.min.js';
