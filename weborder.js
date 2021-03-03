@@ -1,24 +1,18 @@
 // ==UserScript==
 // @name         HusqWebOrderOptimizer
 // @namespace    http://tampermonkey.net/
-// @version      2
+// @version      3
 // @description  try to take over the world!
 // @author       You
-// @match        http://weborder.husqvarna.com/*
+// @match        http://weborder.husqvarna.com/*basket/basket_view_header.jsp
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/lukasdatte/HusqWebOrder/main/weborder.js
+// @downloadURL  https://raw.githubusercontent.com/lukasdatte/HusqWebOrder/main/weborder.js
+// @require      https://code.jquery.com/jquery-latest.min.js
 // ==/UserScript==
 
 
 (function () {
-    function loadJquery(callback) {
-        const script = document.createElement("SCRIPT");
-        script.src = '//code.jquery.com/jquery-latest.min.js';
-        script.type = 'text/javascript';
-        script.onload = function () {
-            callback();
-        };
-        document.getElementsByTagName("head")[0].appendChild(script);
-    }
 
     function pricing() {
         function td(menge, element) {
@@ -83,7 +77,7 @@
         const buttonHtml = "<button id=\"datte-reload\" style=\"\n" +
             "    display: block;\n" +
             "    position: absolute;\n" +
-            "    top: 1em;\n" +
+            "    top: 0em;\n" +
             "    right: 1em;\n" +
             "    padding: .3em 1em;\n" +
             "    /* border: 1px solid #ccc; */\n" +
@@ -101,9 +95,5 @@
         });
         start()
     }
-
-    if (typeof(jQuery) === 'undefined')
-        loadJquery(firstStep)
-    else
-        firstStep();
+    jQuery( document ).ready(firstStep);
 })();
