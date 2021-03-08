@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqWebOrderOptimizer
 // @namespace    https://github.com/lukasdatte/HusqWebOrder
-// @version      3.0.1
+// @version      3.0.2
 // @description  try to take over the world!
 // @author       You
 // @match        http://weborder.husqvarna.com/*basket/basket_view_header.jsp
@@ -22,8 +22,9 @@
             const wertDouble = Number.parseFloat(text.replace(",", ""));
             const wertText = wertDouble.toFixed(4).toLocaleString("de-DE");
             const stückText = (wertDouble / menge).toFixed(4).toLocaleString("de-DE");
+            const stückSkontoText = (wertDouble / menge * 0.97).toFixed(4).toLocaleString("de-DE");
 
-            element.html(`<span style="display: block" class="datte-value">${wertText}</span><span>${stückText}</span>`)
+            element.html(`<span style="display: block; margin-bottom: 5px">${wertText}</span><span style="display: block">${stückText}</span><span style="display: block">${stückSkontoText}</span>`)
         }
 
         function row(e) {
