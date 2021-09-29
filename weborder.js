@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqWebOrderOptimizer
 // @namespace    https://github.com/lukasdatte/HusqWebOrder
-// @version      3.0.2
+// @version      3.1.0
 // @description  try to take over the world!
 // @author       You
 // @match        http://weborder.husqvarna.com/*basket/basket_view_header.jsp
@@ -14,7 +14,7 @@
 
 (function () {
 
-    function pricing() {
+    function artikelpreise() {
         function td(menge, element) {
             element = jQuery(element);
             const text = element.has("span.datte-value").size() > 0 ? element.find("span.datte-value").text() : element.text()
@@ -39,7 +39,6 @@
         }
             const rows = jQuery(".orderBasketRow", top.frames["main"].document.getElementsByTagName("frame").content.contentDocument)
             rows.toArray().map(row)
-
     }
 
     function observer(){
@@ -51,7 +50,7 @@
                 /*const targetIsNetPrice = jTarget.is("[id^=\"td_netPrice\"]")
                 const targetIsGrossPrice = jTarget.is("[id^=\"td_grossPrice\"]")*/
                 if(jTarget.is("[id^=\"td_netPrice\"]") && jTarget.has("span").length === 0 /*|| (!targetIsNetPrice && !targetIsGrossPrice)*/) {
-                    pricing()
+                    artikelpreise()
                 }
             }
         });
@@ -65,10 +64,19 @@
         });
     }
 
+    //Den Endpreis mit Skonto ausrechnen
+    function endpreis(){
+        let ekGesamtElement = jQuery("body > table > tbody > tr > td:nth-child(3) > table > tbody > tr:nth-child(4) > td:nth-child(2)", top.frames["main"].document.getElementsByTagName("frame").bottom.contentDocument)
+        let ekGesamtOriginalerEK = ekGesamtElement.find("b");
+        let ekGesamt = Number.parseFloat(ekGesamtOriginalerEK.text().replace(",", ""));
+        ekGesamtElement.html(`<b>${ekGesamtOriginalerEK.text()}</b><p style="font-weight: bold; margin-top: 5px;">${(ekGesamt * 0.97).toFixed(2).toLocaleString("de-DE")}</p>`)
+    }
+
     function start(){
         try{
-            pricing();
-            observer(pricing);
+            artikelpreise();
+            observer(artikelpreise);
+            endpreis()
         } catch (e) {
             console.log(e)
         }
