@@ -6,8 +6,8 @@
 // @author       Lukas Dattenberger
 // @match        https://mail.google.com/mail/u/0/*
 // @icon         https://www.google.com/s2/favicons?domain=google.com
-// @updateURL    https://raw.githubusercontent.com/lukasdatte/HusqWebOrder/main/gmail-bilder.js
-// @downloadURL  https://raw.githubusercontent.com/lukasdatte/HusqWebOrder/main/gmail-bilder.js
+// @updateURL    https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/gmail-bilder.js
+// @downloadURL  https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/gmail-bilder.js
 // @grant        GM_addStyle
 // ==/UserScript==
 

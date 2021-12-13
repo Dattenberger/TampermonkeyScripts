@@ -6,8 +6,8 @@
 // @author       Lukas Dattenberger
 // @match        https://supportsites.husqvarnagroup.com/de/web-order/einkaufswagen/
 // @grant        GM_addStyle
-// @updateURL    https://raw.githubusercontent.com/lukasdatte/HusqWebOrder/main/weborder_v2.js
-// @downloadURL  https://raw.githubusercontent.com/lukasdatte/HusqWebOrder/main/weborder_v2.js
+// @updateURL    https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/weborder_v2.js
+// @downloadURL  https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/weborder_v2.js
 // @require      https://code.jquery.com/jquery-latest.min.js
 // ==/UserScript==
 
