@@ -8,7 +8,8 @@
 // @grant        GM_addStyle
 // @updateURL    https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/weborder_v2.js
 // @downloadURL  https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/weborder_v2.js
-// @require      https://code.jquery.com/jquery-latest.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/jquery-csv/1.0.21/jquery.csv.min.js
 // ==/UserScript==
 
 
@@ -20,13 +21,13 @@
      * Beobachtet Änderungen am DOM. Bei Änderungen am Wrapperelement der Tabelle wird die Funktion {@link preise} aufgerufen. Änderungen durch z.B. das Hinzufügen und Entfernen von Artikeln sorgt für ein erneutes berechnen aller Einzelpreise und des Skonto Gesamtpreises.
      * @param id die HTML id der Tabelle.
      */
-    function tableObserver(id){
+    function tableObserver(id, idHeaderButton){
         const observer = new MutationObserver(function(mutations, observer) {
             // fired when a mutation occurs
             // Scheint so, als würde der Wrapper der Tabelle verändert werden, wenn der Warenkorb verändert wird. Das Wrapper Element ist dann das Target einiger Mutations. Das wird ausgenutzt, denn wenn dieses Script Änderungen durchführt, ist eben dieses Wrapper Element kein Target. -> So wird verhindert, dass das ausführen der Funktion preise() rekursiv ein neues ausführen von sich selbst auslöst, was wieder für ein neues ausführen sorgen würde...
             if(mutations.some((mutation) => ($(id).parent().is($(mutation.target))))){
                 console.log({triggeredBy: "triggeredBy", mutations})
-                preise(id);
+                preise(id, idHeaderButton);
             }
         });
         observer.observe(document, {
@@ -56,13 +57,35 @@
         return Number(number).toLocaleString("de-DE", {minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits})
     }
 
+    function nullSaveMatch(string, regex, returnIndex) {
+        if(!string)
+            return "";
+        const match = string.match(regex);
+        if(!match || match.length < returnIndex)
+            return "";
+        return match[returnIndex];
+    }
+
+    function download(file) {
+        var element = document.createElement('a');
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+        element.setAttribute('download', filename);
+
+        element.style.display = 'none';
+        document.body.appendChild(element);
+
+        element.click();
+
+        document.body.removeChild(element);
+    }
 
     /**
      * Die führt die Änderungen an der der Tabelle mit der id durch. Diese Funktion kümmert sich um die Einzelpreise, den Header sowie um den Footer.
      * @param id die HTML id der Tabelle.
      */
-    function preise(id){
+    function preise(id, idHeaderButton){
         const tabelle = jQuery(id);
+        const csvData = [];
 
         //HEAD
         const head = tabelle.find("thead");
@@ -115,20 +138,63 @@
             const ekGesamt = parseNumber(zeile.find("td:nth-child(10)").text());
             einzelEk.text(formatNumber((ekGesamt / menge)));
             einzelEkSkonto.text(formatNumber((ekGesamt * skontoFaktor / menge)));
+
+            //Datum im Format: 20220214
+            const lieferdatumHinweis = nullSaveMatch(zeile.find("td:nth-child(13)").text(), /Erwartetes Lieferdatum ist (\d*)/, 1);
+            //Matche 2022 02 14
+            const lieferdatumZerlegt = lieferdatumHinweis.match(/(\d{4})(\d{2})(\d{2})/);
+            const lieferdatum = !lieferdatumZerlegt || lieferdatumZerlegt.length !== 4 ? "" : `${lieferdatumZerlegt[3]}.${lieferdatumZerlegt[2]}.${lieferdatumZerlegt[1]}`
+
+            const hanElement = zeile.find("td:nth-child(2)");
+            //[0].childNodes[0].nodeValue => Nur text vom Parent element.
+            const han = hanElement.length > 0 && hanElement[0].childNodes.length > 0 ? zeile.find("td:nth-child(2)")[0].childNodes[0].nodeValue.replace(/\D+/g, "") : "";
+            const interneBestellnummer = nullSaveMatch(zeile.find("td:nth-child(4) textarea").val(), /^(D-BE\S*)/, 1);
+            csvData.push({
+                HAN: han,
+                "Interne Bestellnummer": !!interneBestellnummer ? interneBestellnummer + "-I" : "",
+                Artikelnummer: nullSaveMatch(zeile.find("td:nth-child(4) textarea").val(), /^D-BE\S*\s*(\S*)/, 1),
+                Lieferantenbezeichnung: zeile.find("td:nth-child(3)").text(),
+                menge: zeile.find("td:nth-child(5) input").val(),
+                "EK netto": formatNumber((ekGesamt * skontoFaktor / menge)),
+                "Lieferdatum": lieferdatum,
+                "Freiposition": "N"
+            })
         });
+
+        const interneBestellnummern = new Set();
+        csvData.forEach(e => {
+            if (!!e["Interne Bestellnummer"]) interneBestellnummern.add(e["Interne Bestellnummer"])
+        })
+
+        //TODO sicherstellen, dass die Interne Bestellnummer bei allen Datensätzen gleich oder nicht gegeben ist.
+        let download = $(idHeaderButton).parent().find(".download");
+        if( download.length === 0 ){
+            download = $('<a class="download btn btn-default" download="bestellung.csv" style=" float: left">Download CSV</a>')
+            $(idHeaderButton).before(download)
+            download.click( e=> preise(id, idHeaderButton))
+        }
+
+        if(interneBestellnummern.size > 1)
+            download.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent("Zu viele interne Bestellnummern: " + [...interneBestellnummern.values()].join(", ")));
+        else
+            download.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent($.csv.fromObjects(csvData, {separator: ";"})));
     }
 
     /**
      * Start
      */
     function start(){
-        GM_addStyle(".einzel-ek, .einzel-ek-skonto {width: 90px !important; text-align: right; }")
+        GM_addStyle(".einzel-ek, .einzel-ek-skonto {width: 90px !important; text-align: right; }" +
+            "th[aria-label=\"Kommentar\"] {width: 250px !important;}" +
+            ".web-order-modules .cart-container .cart-table td textarea { height: 5.5em;}" +
+            "/*@media (min-width: 1470px) { .container { max-width: 1800px !important; width: auto !important; } }*/")
 
-        preise("#stockOrderCart-cart-table");
-        tableObserver("#stockOrderCart-cart-table");
 
-        preise("#shoppingCart-cart-table");
-        tableObserver("#shoppingCart-cart-table");
+        preise("#stockOrderCart-cart-table", "#stockOrderCart .cart-header .input-group-btn");
+        tableObserver("#stockOrderCart-cart-table", "#stockOrderCart .cart-header .input-group-btn");
+
+        preise("#shoppingCart-cart-table", "#shoppingCart .cart-header .input-group-btn");
+        tableObserver("#shoppingCart-cart-table", "#shoppingCart .cart-header .input-group-btn");
     }
 
     jQuery( document ).ready(start);
