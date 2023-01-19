@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqWebOrderOptimizer V2
 // @namespace    https://github.com/lukasdatte/HusqWebOrder
-// @version      3.0.0
+// @version      3.1.0
 // @description  Dieses Script fügt im Warenkorb der Weborder V2 Einzelpreise hinzu. Skonto wird automatisch mit eingerechnet.
 // @author       Lukas Dattenberger
 // @match        https://supportsites.husqvarnagroup.com/de/web-order/einkaufswagen/
@@ -119,25 +119,31 @@
         const zeilen = tabelle.find("tbody tr")
         zeilen.each(function() {
             const zeile = $( this );
-            let einzelEk = zeile.find("td.einzel-ek")
-            let einzelEkSkonto = zeile.find("td.einzel-ek-skonto")
+            let einzelEkElement = zeile.find("td.einzel-ek")
+            let einzelEkSkontoElement = zeile.find("td.einzel-ek-skonto")
 
-            if(einzelEkSkonto.length === 0 || einzelEk.length === 0) {
-                if(einzelEkSkonto.length === 0 ^ einzelEk.length === 0)
+            if(einzelEkSkontoElement.length === 0 || einzelEkElement.length === 0) {
+                if(einzelEkSkontoElement.length === 0 ^ einzelEkElement.length === 0)
                     throw "Es ist nur eine der neuen Zellen vorhanden. Das macht keinen Sinn!: einzel-ek und einzel-ek-skonto "
 
-                const nettoEkGesamt = zeile.find("td:nth-child(10)");
-                einzelEk = $(`<td class="einzel-ek" style="text-align:right;">EK-Netto einzel exkl. Skonto</td>`)
-                einzelEkSkonto =$(`<td class="einzel-ek-skonto" style="text-align:right;">EK-Netto einzel inkl. Skonto</td>`);
+                const nettoEkGesamtElement = zeile.find("td:nth-child(10)");
+                einzelEkElement = $(`<td class="einzel-ek" style="text-align:right;">EK-Netto einzel exkl. Skonto</td>`)
+                einzelEkSkontoElement =$(`<td class="einzel-ek-skonto" style="text-align:right;">EK-Netto einzel inkl. Skonto</td>`);
 
-                nettoEkGesamt.after(einzelEkSkonto);
-                nettoEkGesamt.after(einzelEk);
+                nettoEkGesamtElement.after(einzelEkSkontoElement);
+                nettoEkGesamtElement.after(einzelEkElement);
             }
 
-            const menge = zeile.find(".quantity-column input").val();
+            const kommentar = zeile.find("td:nth-child(4) textarea").val();
+            let vpe = parseInt(nullSaveMatch(kommentar, /^D-BE\S*\s*VPE=(\d+)/, 1));
+            if(isNaN(vpe) || vpe <= 1)
+                vpe = 1;
+
+            const menge = zeile.find(".quantity-column input").val() * vpe;
             const ekGesamt = parseNumber(zeile.find("td:nth-child(10)").text());
-            einzelEk.text(formatNumber((ekGesamt / menge)));
-            einzelEkSkonto.text(formatNumber((ekGesamt * skontoFaktor / menge)));
+            const vpeText = vpe === 1 ? "" : "<br>(bei VPE=" + vpe + ")"
+            einzelEkElement.html(formatNumber((ekGesamt / menge)) + vpeText);
+            einzelEkSkontoElement.html(formatNumber((ekGesamt * skontoFaktor / menge)) + vpeText);
 
             //Datum im Format: 20220214
             const lieferdatumHinweis = nullSaveMatch(zeile.find("td:nth-child(13)").text(), /Erwartetes Lieferdatum ist (\d*)/, 1);
@@ -148,13 +154,15 @@
             const hanElement = zeile.find("td:nth-child(2)");
             //[0].childNodes[0].nodeValue => Nur text vom Parent element.
             const han = hanElement.length > 0 && hanElement[0].childNodes.length > 0 ? zeile.find("td:nth-child(2)")[0].childNodes[0].nodeValue.replace(/\D+/g, "") : "";
-            const interneBestellnummer = nullSaveMatch(zeile.find("td:nth-child(4) textarea").val(), /^(D-BE\S*)/, 1);
+            const interneBestellnummer = nullSaveMatch(kommentar, /^(D-BE\S*)/, 1);
+            const artikelnummer = nullSaveMatch(kommentar, /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/, 1);
+
             csvData.push({
                 HAN: han,
                 "Interne Bestellnummer": !!interneBestellnummer ? interneBestellnummer + "-I" : "",
-                Artikelnummer: nullSaveMatch(zeile.find("td:nth-child(4) textarea").val(), /^D-BE\S*\s*(\S*)/, 1),
-                Lieferantenbezeichnung: zeile.find("td:nth-child(3)").text(),
-                menge: zeile.find("td:nth-child(5) input").val(),
+                Artikelnummer: interneBestellnummer,
+                Lieferantenbezeichnung: artikelnummer,
+                menge: menge,
                 "EK netto": formatNumber((ekGesamt * skontoFaktor / menge)),
                 "Lieferdatum": lieferdatum,
                 "Freiposition": "N"
