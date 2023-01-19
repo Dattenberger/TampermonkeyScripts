@@ -83,7 +83,7 @@
      * Die führt die Änderungen an der der Tabelle mit der id durch. Diese Funktion kümmert sich um die Einzelpreise, den Header sowie um den Footer.
      * @param id die HTML id der Tabelle.
      */
-    function preise(id, idHeaderButton){
+    function preise(id, idHeaderButton, updateDownload = false){
         const tabelle = jQuery(id);
         const csvData = [];
 
@@ -171,10 +171,12 @@
         if( download.length === 0 ){
             download = $('<a class="download btn btn-default" download="bestellung.csv" style=" float: left">Download CSV</a>')
             $(idHeaderButton).before(download)
-            download.click( e=> preise(id, idHeaderButton))
+            download.click( e=> preise(id, idHeaderButton, true) )
         }
 
-        if(interneBestellnummern.size > 1)
+        if(!updateDownload)
+            download.attr('href', 'data:text/plain;charset=utf-8,' + "");
+        else if(interneBestellnummern.size > 1)
             download.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent("Zu viele interne Bestellnummern: " + [...interneBestellnummern.values()].join(", ")));
         else
             download.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent($.csv.fromObjects(csvData, {separator: ";"})));
