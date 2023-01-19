@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         HusqWebOrderOptimizer V2
 // @namespace    https://github.com/lukasdatte/HusqWebOrder
-// @version      3.1.0
+// @version      3.2.0
 // @description  Dieses Script fügt im Warenkorb der Weborder V2 Einzelpreise hinzu. Skonto wird automatisch mit eingerechnet.
 // @author       Lukas Dattenberger
-// @match        https://supportsites.husqvarnagroup.com/de/web-order/einkaufswagen/
+// @match        https://supportsites.husqvarnagroup.com/de/web-order/einkaufswagen/*
 // @grant        GM_addStyle
 // @updateURL    https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/weborder_v2.js
 // @downloadURL  https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/weborder_v2.js
@@ -21,13 +21,13 @@
      * Beobachtet Änderungen am DOM. Bei Änderungen am Wrapperelement der Tabelle wird die Funktion {@link preise} aufgerufen. Änderungen durch z.B. das Hinzufügen und Entfernen von Artikeln sorgt für ein erneutes berechnen aller Einzelpreise und des Skonto Gesamtpreises.
      * @param id die HTML id der Tabelle.
      */
-    function tableObserver(id, idHeaderButton){
+    function tableObserver(id, idHeaderButton, checkout){
         const observer = new MutationObserver(function(mutations, observer) {
             // fired when a mutation occurs
             // Scheint so, als würde der Wrapper der Tabelle verändert werden, wenn der Warenkorb verändert wird. Das Wrapper Element ist dann das Target einiger Mutations. Das wird ausgenutzt, denn wenn dieses Script Änderungen durchführt, ist eben dieses Wrapper Element kein Target. -> So wird verhindert, dass das ausführen der Funktion preise() rekursiv ein neues ausführen von sich selbst auslöst, was wieder für ein neues ausführen sorgen würde...
             if(mutations.some((mutation) => ($(id).parent().is($(mutation.target))))){
                 console.log({triggeredBy: "triggeredBy", mutations})
-                preise(id, idHeaderButton);
+                preise(id, idHeaderButton, false, checkout);
             }
         });
         observer.observe(document, {
@@ -83,7 +83,7 @@
      * Die führt die Änderungen an der der Tabelle mit der id durch. Diese Funktion kümmert sich um die Einzelpreise, den Header sowie um den Footer.
      * @param id die HTML id der Tabelle.
      */
-    function preise(id, idHeaderButton, updateDownload = false){
+    function preise(id, idHeaderButton, updateDownload, checkout){
         const tabelle = jQuery(id);
         const csvData = [];
 
@@ -94,25 +94,27 @@
             if(head.find(".einzel-ek-skonto").length === 0 ^ head.find(".einzel-ek").length === 0)
                 throw "Es ist nur eine der neuen Zellen vorhanden. Das macht keinen Sinn!: einzelEkSkonto und einzelEk "
 
-            const nettoEkGesamt = head.find("th:nth-child(10)");
+            const nettoEkGesamt = head.find(checkout ? "th:nth-child(9)" : "th:nth-child(10)");
             nettoEkGesamt.after(`<th class="einzel-ek-skonto sorting_disabled" rowspan="1" colspan="1" aria-label="Rabatt">EK-Netto einzel<br>inkl. Skonto</th>`);
             nettoEkGesamt.after(`<th class="einzel-ek sorting_disabled" rowspan="1" colspan="1" aria-label="Rabatt">EK-Netto einzel<br>exkl. Skonto</th>`);
         }
 
-        //FOOTER -> Summe mit Skonto
-        const summe = parseNumber(tabelle.find(".total-net-price").text());
-        const foot = tabelle.find("tfoot");
-        let footerSkontoSumme = foot.find(".einzel-ek-skonto")
-        const footerSkontoSummeText = `EK-Netto inkl. Skonto: ${formatNumber(summe * skontoFaktor, 2)}`;
-        if(footerSkontoSumme.length === 0) {
-            footerSkontoSumme = jQuery(`<b class="einzel-ek-skonto" style="margin-left: 2em;">${footerSkontoSummeText}</b>`)
-            const zeilenAnzeige = foot.find("td:nth-child(1)");
-            zeilenAnzeige.find("h5").css("display","inline");
-            zeilenAnzeige.append(footerSkontoSumme);
+        if(!checkout) {
+            //FOOTER -> Summe mit Skonto
+            const summe = parseNumber(tabelle.find(".total-net-price").text());
+            const foot = tabelle.find("tfoot");
+            let footerSkontoSumme = foot.find(".einzel-ek-skonto")
+            const footerSkontoSummeText = `EK-Netto inkl. Skonto: ${formatNumber(summe * skontoFaktor, 2)}`;
+            if (footerSkontoSumme.length === 0) {
+                footerSkontoSumme = jQuery(`<b class="einzel-ek-skonto" style="margin-left: 2em;">${footerSkontoSummeText}</b>`)
+                const zeilenAnzeige = foot.find("td:nth-child(1)");
+                zeilenAnzeige.find("h5").css("display", "inline");
+                zeilenAnzeige.append(footerSkontoSumme);
 
-            //foot.find("td:last-child").attr("colspan",4)
-        } else {
-            footerSkontoSumme.text(footerSkontoSummeText);
+                //foot.find("td:last-child").attr("colspan",4)
+            } else {
+                footerSkontoSumme.text(footerSkontoSummeText);
+            }
         }
 
         //ZEILEN -> Einzelpreise für jede Zeile berechnen
@@ -126,7 +128,7 @@
                 if(einzelEkSkontoElement.length === 0 ^ einzelEkElement.length === 0)
                     throw "Es ist nur eine der neuen Zellen vorhanden. Das macht keinen Sinn!: einzel-ek und einzel-ek-skonto "
 
-                const nettoEkGesamtElement = zeile.find("td:nth-child(10)");
+                const nettoEkGesamtElement = zeile.find(checkout ? "td:nth-child(9)" : "td:nth-child(10)");
                 einzelEkElement = $(`<td class="einzel-ek" style="text-align:right;">EK-Netto einzel exkl. Skonto</td>`)
                 einzelEkSkontoElement =$(`<td class="einzel-ek-skonto" style="text-align:right;">EK-Netto einzel inkl. Skonto</td>`);
 
@@ -134,19 +136,20 @@
                 nettoEkGesamtElement.after(einzelEkElement);
             }
 
-            const kommentar = zeile.find("td:nth-child(4) textarea").val();
+            const kommentar = checkout ? zeile.find("td:nth-child(4)").text() : zeile.find("td:nth-child(4) textarea").val();
             let vpe = parseInt(nullSaveMatch(kommentar, /^D-BE\S*\s*VPE=(\d+)/, 1));
             if(isNaN(vpe) || vpe <= 1)
                 vpe = 1;
 
-            const menge = zeile.find(".quantity-column input").val() * vpe;
-            const ekGesamt = parseNumber(zeile.find("td:nth-child(10)").text());
+            debugger;
+            const menge = checkout ? zeile.find("td:nth-child(5)").text() * vpe : zeile.find(".quantity-column input").val() * vpe;
+            const ekGesamt = parseNumber(zeile.find(checkout ? "td:nth-child(9)" : "td:nth-child(10)").text());
             const vpeText = vpe === 1 ? "" : "<br>(bei VPE=" + vpe + ")"
             einzelEkElement.html(formatNumber((ekGesamt / menge)) + vpeText);
             einzelEkSkontoElement.html(formatNumber((ekGesamt * skontoFaktor / menge)) + vpeText);
 
             //Datum im Format: 20220214
-            const lieferdatumHinweis = nullSaveMatch(zeile.find("td:nth-child(13)").text(), /Erwartetes Lieferdatum ist (\d*)/, 1);
+            const lieferdatumHinweis = nullSaveMatch(zeile.find(checkout ? "td:nth-child(12)" : "td:nth-child(13)").text(), /Erwartetes Lieferdatum ist (\d*)/, 1);
             //Matche 2022 02 14
             const lieferdatumZerlegt = lieferdatumHinweis.match(/(\d{4})(\d{2})(\d{2})/);
             const lieferdatum = !lieferdatumZerlegt || lieferdatumZerlegt.length !== 4 ? "" : `${lieferdatumZerlegt[3]}.${lieferdatumZerlegt[2]}.${lieferdatumZerlegt[1]}`
@@ -157,11 +160,13 @@
             const interneBestellnummer = nullSaveMatch(kommentar, /^(D-BE\S*)/, 1);
             const artikelnummer = nullSaveMatch(kommentar, /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/, 1);
 
+            const lieferantenbezeichnung = zeile.find("td:nth-child(3)").text()
+
             csvData.push({
                 HAN: han,
                 "Interne Bestellnummer": !!interneBestellnummer ? interneBestellnummer + "-I" : "",
-                Artikelnummer: interneBestellnummer,
-                Lieferantenbezeichnung: artikelnummer,
+                Artikelnummer: artikelnummer,
+                Lieferantenbezeichnung: lieferantenbezeichnung,
                 menge: menge,
                 "EK netto": formatNumber((ekGesamt * skontoFaktor / menge)),
                 "Lieferdatum": lieferdatum,
@@ -179,7 +184,7 @@
         if( download.length === 0 ){
             download = $('<a class="download btn btn-default" download="bestellung.csv" style=" float: left">Download CSV</a>')
             $(idHeaderButton).before(download)
-            download.click( e=> preise(id, idHeaderButton, true) )
+            download.click( e=> preise(id, idHeaderButton, true, checkout) )
         }
 
         if(!updateDownload)
@@ -200,11 +205,14 @@
             "/*@media (min-width: 1470px) { .container { max-width: 1800px !important; width: auto !important; } }*/")
 
 
-        preise("#stockOrderCart-cart-table", "#stockOrderCart .cart-header .input-group-btn");
-        tableObserver("#stockOrderCart-cart-table", "#stockOrderCart .cart-header .input-group-btn");
+        preise("#stockOrderCart-cart-table", "#stockOrderCart .cart-header .input-group-btn", false , false);
+        tableObserver("#stockOrderCart-cart-table", "#stockOrderCart .cart-header .input-group-btn", false);
 
-        preise("#shoppingCart-cart-table", "#shoppingCart .cart-header .input-group-btn");
-        tableObserver("#shoppingCart-cart-table", "#shoppingCart .cart-header .input-group-btn");
+        preise("#shoppingCart-cart-table", "#shoppingCart .cart-header .input-group-btn", false , false);
+        tableObserver("#shoppingCart-cart-table", "#shoppingCart .cart-header .input-group-btn", false);
+
+        preise("#cart-table_wrapper", ".weborder-checkout > .cart-container > :nth-child(4) .shipping-header h4", false, true);
+        tableObserver("#cart-table_wrapper", ".weborder-checkout > .cart-container > :nth-child(4) .shipping-header h4", true);
     }
 
     jQuery( document ).ready(start);
