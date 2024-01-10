@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqWebOrderOptimizer V2
 // @namespace    https://github.com/lukasdatte/HusqWebOrder
-// @version      3.2.0
+// @version      4.0.0
 // @description  Dieses Script fügt im Warenkorb der Weborder V2 Einzelpreise hinzu. Skonto wird automatisch mit eingerechnet.
 // @author       Lukas Dattenberger
 // @match        https://supportsites.husqvarnagroup.com/de/web-order/einkaufswagen/*
@@ -94,7 +94,7 @@
             if(head.find(".einzel-ek-skonto").length === 0 ^ head.find(".einzel-ek").length === 0)
                 throw "Es ist nur eine der neuen Zellen vorhanden. Das macht keinen Sinn!: einzelEkSkonto und einzelEk "
 
-            const nettoEkGesamt = head.find(checkout ? "th:nth-child(9)" : "th:nth-child(10)");
+            const nettoEkGesamt = head.find(checkout ? "th:nth-child(9)" : "th:nth-child(11)");
             nettoEkGesamt.after(`<th class="einzel-ek-skonto sorting_disabled" rowspan="1" colspan="1" aria-label="Rabatt">EK-Netto einzel<br>inkl. Skonto</th>`);
             nettoEkGesamt.after(`<th class="einzel-ek sorting_disabled" rowspan="1" colspan="1" aria-label="Rabatt">EK-Netto einzel<br>exkl. Skonto</th>`);
         }
@@ -128,7 +128,7 @@
                 if(einzelEkSkontoElement.length === 0 ^ einzelEkElement.length === 0)
                     throw "Es ist nur eine der neuen Zellen vorhanden. Das macht keinen Sinn!: einzel-ek und einzel-ek-skonto "
 
-                const nettoEkGesamtElement = zeile.find(checkout ? "td:nth-child(9)" : "td:nth-child(10)");
+                const nettoEkGesamtElement = zeile.find(checkout ? "td:nth-child(9)" : "td:nth-child(11)");
                 einzelEkElement = $(`<td class="einzel-ek" style="text-align:right;">EK-Netto einzel exkl. Skonto</td>`)
                 einzelEkSkontoElement =$(`<td class="einzel-ek-skonto" style="text-align:right;">EK-Netto einzel inkl. Skonto</td>`);
 
@@ -136,31 +136,31 @@
                 nettoEkGesamtElement.after(einzelEkElement);
             }
 
-            const kommentar = checkout ? zeile.find("td:nth-child(4)").text() : zeile.find("td:nth-child(4) textarea").val();
+            const kommentar = checkout ? zeile.find("td:nth-child(4)").text() : zeile.find("td:nth-child(5) textarea").val();
             let vpe = parseInt(nullSaveMatch(kommentar, /^D-BE\S*\s*VPE=(\d+)/, 1));
             if(isNaN(vpe) || vpe <= 1)
                 vpe = 1;
 
-            debugger;
             const menge = checkout ? zeile.find("td:nth-child(5)").text() * vpe : zeile.find(".quantity-column input").val() * vpe;
-            const ekGesamt = parseNumber(zeile.find(checkout ? "td:nth-child(9)" : "td:nth-child(10)").text());
+            const ekGesamt = parseNumber(zeile.find(checkout ? "td:nth-child(9)" : "td:nth-child(11)").text());
             const vpeText = vpe === 1 ? "" : "<br>(bei VPE=" + vpe + ")"
             einzelEkElement.html(formatNumber((ekGesamt / menge)) + vpeText);
             einzelEkSkontoElement.html(formatNumber((ekGesamt * skontoFaktor / menge)) + vpeText);
 
             //Datum im Format: 20220214
-            const lieferdatumHinweis = nullSaveMatch(zeile.find(checkout ? "td:nth-child(12)" : "td:nth-child(13)").text(), /Erwartetes Lieferdatum ist (\d*)/, 1);
+            const lieferdatumHinweis = nullSaveMatch(zeile.find(checkout ? "td:nth-child(12)" : "td:nth-child(15)").text(), /Erwartetes Lieferdatum ist (\d*)/, 1);
             //Matche 2022 02 14
             const lieferdatumZerlegt = lieferdatumHinweis.match(/(\d{4})(\d{2})(\d{2})/);
             const lieferdatum = !lieferdatumZerlegt || lieferdatumZerlegt.length !== 4 ? "" : `${lieferdatumZerlegt[3]}.${lieferdatumZerlegt[2]}.${lieferdatumZerlegt[1]}`
 
-            const hanElement = zeile.find("td:nth-child(2)");
+            const hanElement = checkout ? zeile.find("td:nth-child(2)") : zeile.find("td:nth-child(3)");
             //[0].childNodes[0].nodeValue => Nur text vom Parent element.
-            const han = hanElement.length > 0 && hanElement[0].childNodes.length > 0 ? zeile.find("td:nth-child(2)")[0].childNodes[0].nodeValue.replace(/\D+/g, "") : "";
+            const han = hanElement.length > 0 && hanElement[0].childNodes.length > 0 ? hanElement[0].childNodes[0].nodeValue.replace(/\D+/g, "") : "";
+
             const interneBestellnummer = nullSaveMatch(kommentar, /^(D-BE\S*)/, 1);
             const artikelnummer = nullSaveMatch(kommentar, /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/, 1);
 
-            const lieferantenbezeichnung = zeile.find("td:nth-child(3)").text()
+            const lieferantenbezeichnung = checkout ? zeile.find("td:nth-child(3)").text() : zeile.find("td:nth-child(4)").text();
 
             csvData.push({
                 HAN: han,
@@ -205,14 +205,17 @@
             "/*@media (min-width: 1470px) { .container { max-width: 1800px !important; width: auto !important; } }*/")
 
 
+        //Wochenbestellung
         preise("#stockOrderCart-cart-table", "#stockOrderCart .cart-header .input-group-btn", false , false);
         tableObserver("#stockOrderCart-cart-table", "#stockOrderCart .cart-header .input-group-btn", false);
 
+        //Tagesbestellung
         preise("#shoppingCart-cart-table", "#shoppingCart .cart-header .input-group-btn", false , false);
         tableObserver("#shoppingCart-cart-table", "#shoppingCart .cart-header .input-group-btn", false);
 
-        preise("#cart-table_wrapper", ".weborder-checkout > .cart-container > :nth-child(4) .shipping-header h4", false, true);
-        tableObserver("#cart-table_wrapper", ".weborder-checkout > .cart-container > :nth-child(4) .shipping-header h4", true);
+        //Checkout
+        preise("#cart-table_wrapper", " .cart-container .shipping-header h4", false, true);
+        tableObserver("#cart-table_wrapper", " .cart-container .shipping-header h4", true);
     }
 
     jQuery( document ).ready(start);
