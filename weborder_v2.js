@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqWebOrderOptimizer V2
 // @namespace    https://github.com/lukasdatte/HusqWebOrder
-// @version      4.0.0
+// @version      5.0.0
 // @description  Dieses Script fügt im Warenkorb der Weborder V2 Einzelpreise hinzu. Skonto wird automatisch mit eingerechnet.
 // @author       Lukas Dattenberger
 // @match        https://supportsites.husqvarnagroup.com/de/web-order/einkaufswagen/*
@@ -195,6 +195,43 @@
             download.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent($.csv.fromObjects(csvData, {separator: ";"})));
     }
 
+    const CHECKBOX_SELECTOR = "input[id^=cart-select].magic-checkbox";
+
+    function getRowFromCheckbox(checkbox){
+        return checkbox.closest("tr");
+    }
+
+    function checkboxen(tableId) {
+        let lastCheckedIndex = null;
+        const tableBody = jQuery(tableId + " tBody");
+
+        tableBody.on('click', CHECKBOX_SELECTOR, function (e) {
+            const currentIndex = jQuery(e.target).closest("tr").index();
+
+            if (lastCheckedIndex === null) {
+                lastCheckedIndex = currentIndex;
+                return;
+            }
+
+            if (e.shiftKey || e.ctrlKey) {
+                let start;
+                let end;
+
+                if(lastCheckedIndex < currentIndex){
+                    start = lastCheckedIndex + 1;
+                    end = currentIndex;
+                } else if (lastCheckedIndex > currentIndex){
+                    start = currentIndex;
+                    end = lastCheckedIndex - 1;
+                }
+
+                tableBody.find(CHECKBOX_SELECTOR).slice(start, end + 1).click();
+            }
+
+            lastCheckedIndex = currentIndex;
+        });
+    }
+
     /**
      * Start
      */
@@ -208,10 +245,12 @@
         //Wochenbestellung
         preise("#stockOrderCart-cart-table", "#stockOrderCart .cart-header .input-group-btn", false , false);
         tableObserver("#stockOrderCart-cart-table", "#stockOrderCart .cart-header .input-group-btn", false);
+        checkboxen("#stockOrderCart-cart-table");
 
         //Tagesbestellung
         preise("#shoppingCart-cart-table", "#shoppingCart .cart-header .input-group-btn", false , false);
         tableObserver("#shoppingCart-cart-table", "#shoppingCart .cart-header .input-group-btn", false);
+        checkboxen("#shoppingCart-cart-table");
 
         //Checkout
         preise("#cart-table_wrapper", " .cart-container .shipping-header h4", false, true);
