@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         HusqWebOrderOptimizer
-// @namespace    https://github.com/lukasdatte/HusqWebOrder
+// @namespace    https://github.com/Dattenberger/TampermonkeyScripts
 // @version      3.1.0
 // @description  Dieses Script fügt im Warenkorb der Weborder V1 Einzelpreise hinzu. Skonto wird automatisch mit eingerechnet. Dafür wird ein Button im Warenkorb hinzugefügt.
 // @author       Lukas Dattenberger
 // @match        http://weborder.husqvarna.com/*basket/basket_view_header.jsp
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/weborder.js
-// @downloadURL  https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/weborder.js
+// @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/weborder.js
+// @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/weborder.js
 // @require      https://code.jquery.com/jquery-latest.min.js
 // ==/UserScript==
 
