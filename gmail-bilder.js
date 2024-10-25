@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         Gmail CSS (Bilder)
-// @namespace    https://github.com/lukasdatte/HusqWebOrder
+// @namespace    https://github.com/Dattenberger/TampermonkeyScripts
 // @version      1.0.1
 // @description  Stellt sicher, dass die Bilder in Gmail nicht breiter als das Fenster werden.
 // @author       Lukas Dattenberger
 // @match        https://mail.google.com/mail/u/*
 // @icon         https://www.google.com/s2/favicons?domain=google.com
-// @updateURL    https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/gmail-bilder.js
-// @downloadURL  https://raw.githubusercontent.com/lukasdatte/TampermonkeyScripts/main/gmail-bilder.js
+// @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/gmail-bilder.js
+// @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/gmail-bilder.js
 // @grant        GM_addStyle
 // ==/UserScript==
 
