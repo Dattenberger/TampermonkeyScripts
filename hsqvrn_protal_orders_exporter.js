@@ -28,13 +28,64 @@
         });
     }
 
+    function nullSaveMatch(string, regex, returnIndex) {
+        if (!string)
+            return "";
+        const match = string.match(regex);
+        if (!match || match.length < returnIndex)
+            return "";
+        return match[returnIndex];
+    }
+
+    function formatData(date) {
+        const monthMap = {
+            Januar: '01',
+            Februar: '02',
+            März: '03',
+            April: '04',
+            Mai: '05',
+            Juni: '06',
+            Juli: '07',
+            August: '08',
+            September: '09',
+            Oktober: '10',
+            November: '11',
+            Dezember: '12'
+        };
+
+        // Split the input date into parts
+        const parts = date.split(' ');
+        const day = parts[0]; // The day
+        const month = monthMap[parts[1]]; // The month number from the map
+        const year = parts[2]; // The year
+
+        // Return the formatted date string
+        return `${day}.${month}.${year}`.replace('..', '.')
+    }
+
+    function prepareCsvDataToExport(csvData) {
+        return csvData.map(data => {
+            return {
+                "HAN": data["Artikelnumer"],
+                "Interne Bestellnummer": data["Interne Bestellnummer"],
+                "Artikelnummer": nullSaveMatch(data["Kommentar"], /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/, 1),
+                "Lieferantenbezeichnung": data["Beschreibung"],
+                "menge": data["Anz/Konf."].split('/')[0],
+                "EK netto": parseFloat(data["Gesamt"].replace(/\./g, '').replace(',', '.')) * 0.97 / Number(data["Anz/Konf."].split('/')[0]).toFixed(4),
+                "Lieferdatum": formatData(data["Versendet"]),
+                "Freiposition": "N",
+                "Fremdbelegnummer": data["Fremdbelegnummer"],
+            }
+        })
+    }
+
     function ordersExporter(modalSelector, downloadCsv = false) {
         if (location.search.includes('?order=')) {
             const modal = $(modalSelector)
             const modalHeader = modal.find(`header`)
             const table = modal.find('table.b2b-oq')
 
-           
+
 
             let download = modalHeader.find(`.export-btn`)
             if (!download.length) {
@@ -62,6 +113,9 @@
 
             const tableLines = table.find(`tbody tr`)
 
+            const innerOrderNumber = modal.find(`dl.ui-ax > dd:eq(0)`).text()
+            const outerOrderNumber = modal.find(`dl.ui-ax > dd:eq(1)`).text()
+
             tableLines.each(function () {
                 const line = $(this)
 
@@ -74,13 +128,17 @@
                     "Anz/Konf.": line.find('td:eq(5) div').text(),
                     "Gesamt": line.find('td:eq(6) div').text(),
                     "Tracking link": line.find('td:eq(7) span').text(),
+                    "Interne Bestellnummer": innerOrderNumber,
+                    "Fremdbelegnummer": outerOrderNumber
                 })
             })
+
+
 
             if (!downloadCsv) {
                 download.attr('href', 'data:text/plain;charset=utf-8,' + "");
             } else {
-                download.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent($.csv.fromObjects(csvData, { separator: ";" })));
+                download.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent($.csv.fromObjects(prepareCsvDataToExport(csvData), { separator: ";" })));
             }
 
 

@@ -119,8 +119,6 @@
                 downloadBtn.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent($.csv.fromObjects(csvData, { separator: ";" })));
             }
         })
-
-
     }
 
     function start() {
