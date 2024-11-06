@@ -17,9 +17,8 @@
     const discountFactor = 0.97;
 
     function tableObserver(tablesSelector, downloadIndex = null) {
-
         const observer = new MutationObserver(function (mutations, observer) {
-            if (mutations.some((mutation) => ($(tablesSelector).is($(mutation.target))))) {
+            if (mutations.some((mutation) => ($(tablesSelector).parent().is($(mutation.target))))) {
                 cartExporter(tablesSelector, downloadIndex);
             }
         });
@@ -41,7 +40,9 @@
     }
 
     function parseNumber(text) {
-        return Number.parseFloat(text.replace(".", "").replace(',', '.'));
+        return Number.parseFloat(
+            text.replace(".", "").replace(',', '.')
+        );
     }
 
     function formatNumber(number, fractionDigits = 4) {
@@ -49,9 +50,7 @@
     }
 
     function cartExporter(tablesSelector, downloadCsvIndex = null) {
-        const carts = jQuery(tablesSelector);
-
-        const cartsTables = carts.find(`div[role="table"]`)
+        const cartsTables = jQuery(tablesSelector);
 
         cartsTables.each(function (index) {
             const table = $(this)
@@ -77,22 +76,25 @@
                 downloadBtn.click(() => cartExporter(tablesSelector, index))
             }
 
-            const tableLines = table.find('div[role="row"].b2b-n0.b2b-n1.b2b-e1')
+            const tableLines = table.find('div[role="rowgroup"]:eq(1) div[role="row"]')
 
             const csvData = []
 
             tableLines.each(function () {
                 const line = $(this)
 
-                const han = line.find('div[role="cell"]:eq(1) a').text()
+                const han = line.find('div[role="cell"]:eq(1) a').text().replace(/[^a-zA-Z0-9]/g, '');
                 const description = line.find('div[role="cell"]:eq(2) span').text()
-                const netPrice = line.find('div[role="cell"]:eq(3) span').text()
-                const quantity = line.find('div[role="cell"]:eq(5) input').val()
-                const deliveryDate = line.find('div[role="cell"]:eq(7) > span.b2b-r_ > div.b2b-gg.b2b-sa > span.body_xxs_default.b2b-gf').text()
+                const netPrice = parseNumber(line.find('div[role="cell"]:eq(6) span').text().replace(" €", ""))
+                const deliveryDate = line.find('div[role="cell"]:eq(7) span div > span:eq(1)').text()
                 const comment = line.find('div[role="cell"]:eq(8) input').val()
-
                 const internalOrderNumber = nullSaveMatch(comment, /^(D-BE\S*)/, 1);
                 const productNumber = nullSaveMatch(comment, /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/, 1);
+                let vpe = parseInt(nullSaveMatch(comment, /^D-BE\S*\s*VPE=(\d+)/, 1));
+                if (isNaN(vpe) || vpe <= 1) {
+                    vpe = 1;
+                }
+                const quantity = parseFloat(line.find('div[role="cell"]:eq(5) input').val()) * vpe
 
                 csvData.push({
                     "HAN": han,
@@ -100,9 +102,10 @@
                     "Artikelnummer": productNumber,
                     "Lieferantenbezeichnung": description,
                     "menge": quantity,
-                    "EK netto": netPrice,
+                    "EK netto": netPrice * discountFactor / quantity,
                     "Lieferdatum": deliveryDate,
-                    "Freiposition": "N"
+                    "Freiposition": "N",
+                    "Fremdbelegnummer": ""
                 })
             })
 
@@ -122,9 +125,10 @@
     }
 
     function start() {
-        const tablesSelector = `div[data-test="cart"] div.b2b-b1`
+        const tablesSelector = `div[data-test="cart"] div[role="table"]`
 
         tableObserver(tablesSelector, null)
+        cartExporter(tablesSelector, null)
     }
 
     jQuery(document).ready(start);
