@@ -77,7 +77,7 @@
                 "Artikelnummer": nullSaveMatch(data["Kommentar"], /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/, 1),
                 "Lieferantenbezeichnung": data["Beschreibung"],
                 "menge": menge,
-                "EK netto": (parseFloat(data["Gesamt"].replace(/\./g, '').replace(',', '.')) * 0.97 / menge).toFixed(4),
+                "EK netto": `${(parseFloat(data["Gesamt"].replace(/\./g, '').replace(',', '.')) * 0.97 / menge).toFixed(4)}`.replace('.', ','),
                 "Lieferdatum": formatData(data["Versendet"]),
                 "Freiposition": "N",
                 "Fremdbelegnummer": data["Fremdbelegnummer"],

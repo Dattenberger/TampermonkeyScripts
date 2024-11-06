@@ -102,7 +102,7 @@
                     "Artikelnummer": productNumber,
                     "Lieferantenbezeichnung": description,
                     "menge": quantity,
-                    "EK netto": netPrice * discountFactor / quantity,
+                    "EK netto": `${(netPrice * discountFactor / quantity).toFixed(4)}`.replace('.', ','),
                     "Lieferdatum": deliveryDate,
                     "Freiposition": "N",
                     "Fremdbelegnummer": ""
