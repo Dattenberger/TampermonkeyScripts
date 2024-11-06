@@ -88,7 +88,7 @@
                 const description = line.find('div[role="cell"]:eq(2) span').text()
                 const netPrice = line.find('div[role="cell"]:eq(3) span').text()
                 const quantity = line.find('div[role="cell"]:eq(5) input').val()
-                const deliveryDate = line.find('div[role="cell"]:eq(7) > span.b2b-r_ > div.b2b-gg.b2b-sa > span.body_xxs_default.b2b-gi').text()
+                const deliveryDate = line.find('div[role="cell"]:eq(7) > span.b2b-r_ > div.b2b-gg.b2b-sa > span.body_xxs_default.b2b-gf').text()
                 const comment = line.find('div[role="cell"]:eq(8) input').val()
 
                 const internalOrderNumber = nullSaveMatch(comment, /^(D-BE\S*)/, 1);
