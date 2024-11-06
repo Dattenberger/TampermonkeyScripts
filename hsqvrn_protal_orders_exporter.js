@@ -65,13 +65,19 @@
 
     function prepareCsvDataToExport(csvData) {
         return csvData.map(data => {
+            let vpe = parseInt(nullSaveMatch(data["Kommentar"], /^D-BE\S*\s*VPE=(\d+)/, 1));
+            if (isNaN(vpe) || vpe <= 1)
+                vpe = 1;
+
+            const menge = data["Anz/Konf."].split('/')[0] * vpe
+
             return {
                 "HAN": data["Artikelnumer"],
                 "Interne Bestellnummer": data["Interne Bestellnummer"],
                 "Artikelnummer": nullSaveMatch(data["Kommentar"], /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/, 1),
                 "Lieferantenbezeichnung": data["Beschreibung"],
-                "menge": data["Anz/Konf."].split('/')[0],
-                "EK netto": parseFloat(data["Gesamt"].replace(/\./g, '').replace(',', '.')) * 0.97 / Number(data["Anz/Konf."].split('/')[0]).toFixed(4),
+                "menge": menge,
+                "EK netto": (parseFloat(data["Gesamt"].replace(/\./g, '').replace(',', '.')) * 0.97 / menge).toFixed(4),
                 "Lieferdatum": formatData(data["Versendet"]),
                 "Freiposition": "N",
                 "Fremdbelegnummer": data["Fremdbelegnummer"],
@@ -118,7 +124,7 @@
                 const line = $(this)
 
                 csvData.push({
-                    "Artikelnumer": line.find('td:eq(0) div div:eq(0)').text(),
+                    "Artikelnumer": line.find('td:eq(0) div div:eq(0)').text() || line.find('td:eq(0) div div:eq(1)').text(),
                     "Kommentar": line.find('td:eq(1) div').text(),
                     "Beschreibung": line.find('td:eq(2) div').text(),
                     "Angefragt": line.find('td:eq(3) div').text(),
