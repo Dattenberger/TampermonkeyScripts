@@ -16,7 +16,6 @@
 (function () {
     function tableObserver(tableSelector) {
         const observer = new MutationObserver(function (mutations, observer) {
-            console.log(`mutations`, mutations)
             if (mutations.some(
                 (mutation) => ($(tableSelector).is($(mutation.target)) || $(tableSelector).find(`article`).parent().is($(mutation.target))))
             ) {
@@ -76,7 +75,7 @@
 
             return {
                 "HAN": data["Artikelnumer"],
-                "Interne Bestellnummer": data["Interne Bestellnummer"],
+                "Interne Bestellnummer": data["Interne Bestellnummer"].slice(0, 14),
                 "Artikelnummer": nullSaveMatch(data["Kommentar"], /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/, 1),
                 "Lieferantenbezeichnung": data["Beschreibung"],
                 "menge": menge,
@@ -89,7 +88,6 @@
     }
 
     function ordersExporter(modalSelector, downloadCsv = false) {
-        console.log(1)
         if (location.search.includes('?order=')) {
             const initSelector = $(modalSelector)
 
