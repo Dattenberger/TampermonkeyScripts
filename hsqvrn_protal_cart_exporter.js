@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalCartExporter v1
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      1.0.0
+// @version      1.0.1
 // @description  This script allows to export cart data into csv file.
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/checkout/*
@@ -98,7 +98,7 @@
 
                 csvData.push({
                     "HAN": han,
-                    "Interne Bestellnummer": !!internalOrderNumber ? internalOrderNumber + "-I" : "",
+                    "Interne Bestellnummer": !!internalOrderNumber ? internalOrderNumber.replace(/-I\d+$/, "-I") + "-I" : "",
                     "Artikelnummer": productNumber,
                     "Lieferantenbezeichnung": description,
                     "menge": quantity,
