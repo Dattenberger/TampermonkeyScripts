@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V3
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      1.0.0
+// @version      1.0.1
 // @description  This script allows to export orders data into csv file.
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -16,7 +16,9 @@
 (function () {
     function tableObserver(tableSelector) {
         const observer = new MutationObserver(function (mutations, observer) {
-            if (mutations.some((mutation) => ($(tableSelector).parent().is($(mutation.target))))) {
+            if (mutations.some(
+                (mutation) => ($(tableSelector).is($(mutation.target)) || $(tableSelector).find(`article`).parent().is($(mutation.target))))
+            ) {
                 ordersExporter(tableSelector, false);
             }
         });
@@ -73,7 +75,7 @@
 
             return {
                 "HAN": data["Artikelnumer"],
-                "Interne Bestellnummer": data["Interne Bestellnummer"],
+                "Interne Bestellnummer": data["Interne Bestellnummer"].slice(0, 14),
                 "Artikelnummer": nullSaveMatch(data["Kommentar"], /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/, 1),
                 "Lieferantenbezeichnung": data["Beschreibung"],
                 "menge": menge,
@@ -87,7 +89,11 @@
 
     function ordersExporter(modalSelector, downloadCsv = false) {
         if (location.search.includes('?order=')) {
-            const modal = $(modalSelector)
+            const initSelector = $(modalSelector)
+
+            const modal = initSelector.find(`article`)
+
+
             const modalHeader = modal.find(`header`)
             const table = modal.find('table')
 
@@ -98,7 +104,7 @@
                 divToInsertExportBtn.css({ "display": "flex", "justify-content": "space-between" })
 
                 download = $(`
-                    <a class="export-btn b2b-bq" data-variant="secondary" data-size="compact" download="order-${divToInsertExportBtn.text()}.csv">
+                    <a class="export-btn" data-variant="secondary" data-size="compact" download="order-${divToInsertExportBtn.text()}.csv">
                         <span class="b2b-bx">
                             <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28">
                                 <path fill="currentColor" d="M27.003 20a1 1 0 0 1 .992.884l.007.116L28 26.003a2 2 0 0 1-1.85 1.994l-.15.005H2a2 2 0 0 1-1.995-1.85L0 26.002V21a1 1 0 0 1 1.993-.117L2 21v5.002h24L26.002 21a1 1 0 0 1 1-1m-13-20a1 1 0 0 1 .992.883l.007.117v16.585l6.293-6.292a1 1 0 0 1 1.492 1.327l-.078.087-8 8a1 1 0 0 1-.085.076l-.009.007-.028.021a1 1 0 0 1-.075.05l-.026.014a1 1 0 0 1-.08.04l-.038.016-.051.018-.018.006a1 1 0 0 1-.124.03l-.027.004a1 1 0 0 1-.146.011h-.033l-.052-.004.085.004a1 1 0 0 1-.18-.016h-.002l-.023-.005-.059-.014-.032-.01h-.002l-.014-.005a1 1 0 0 1-.095-.036l-.003-.002-.018-.008-.045-.023-.036-.02-.004-.003q0 .002-.005-.003l-.01-.006-.065-.044-.024-.018a1 1 0 0 1-.09-.08l-8-8a1 1 0 0 1 1.327-1.492l.087.078 6.293 6.292V1a1 1 0 0 1 1-1"></path>
@@ -152,7 +158,7 @@
     }
 
     function start() {
-        const modalSelector = `div#ui-modal-target article`
+        const modalSelector = `div#ui-modal-target`
 
         tableObserver(modalSelector, false)
     }
