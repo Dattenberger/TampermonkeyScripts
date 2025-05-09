@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Greyhound Alt+J
-// @version      1.0
+// @version      1.1
 // @description  Löst beim Drücken von Alt+J einen Klick auf "Erstelle Anrede" aus – auch in dynamisch hinzugefügten iframes.
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
 // @author       Lukas Dattenberger
@@ -8,10 +8,18 @@
 // @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/greyhound.js
 
 // @match        https://greyhound.dattenberger.com/web/unity/*
-// @grant        none
+// @grant        GM_addStyle
 // @run-at       document-idle
 // ==/UserScript==
 
+// Make the email title selectable by the user so they can copy the text.
+(function() {
+    'use strict';
+    GM_addStyle('.chatView__header__subject___90376f74{user-select: text;}');
+})();
+
+
+// Ali + J -> "Erstelle Anrede"
 (() => {
     // 2) Handler-Funktion
     function onAltJ(e) {
