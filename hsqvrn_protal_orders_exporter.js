@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V3
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      1.0.1
+// @version      1.0.2
 // @description  This script allows to export orders data into csv file.
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
