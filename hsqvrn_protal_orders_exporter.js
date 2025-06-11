@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V3
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      1.0.2
+// @version      1.0.3
 // @description  This script allows to export orders data into csv file.
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -11,6 +11,7 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jquery-csv/1.0.21/jquery.csv.min.js
 // ==/UserScript==
+
 
 
 (function () {
@@ -131,8 +132,8 @@
 
                 csvData.push({
                     "Artikelnumer": line.find('td:eq(0) div div:eq(0)').text() || line.find('td:eq(0) div div:eq(1)').text(),
-                    "Kommentar": line.find('td:eq(1) div').text(),
-                    "Beschreibung": line.find('td:eq(2) div').text(),
+                    "Kommentar": line.find('td:eq(2) div').text(),
+                    "Beschreibung": line.find('td:eq(1) div').text(),
                     "Angefragt": line.find('td:eq(3) div').text(),
                     "Versendet": line.find('td:eq(4) div').text(),
                     "Anz/Konf.": line.find('td:eq(5) div').text(),
