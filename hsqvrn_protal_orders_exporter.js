@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V3
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      1.0.3
+// @version      1.0.4
 // @description  This script allows to export orders data into csv file.
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -125,7 +125,9 @@
             const tableLines = table.find(`tbody tr`)
 
             const innerOrderNumber = modal.find(`dl > dd:eq(0)`).text()
-            const outerOrderNumber = modal.find(`dl > dd:eq(1)`).text()
+            const outerOrderNumber = modal.find(`header > div`).get(0).childNodes[0].wholeText
+
+            debugger;
 
             tableLines.each(function () {
                 const line = $(this)
