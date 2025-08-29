@@ -33,6 +33,14 @@
             pointer-events: none;
         }
         
+        /* Queued state */
+        a.export-btn.queued {
+            background-color: #ffc107;
+            border-color: #ffc107;
+            color: #212529;
+            pointer-events: none;
+        }
+        
         /* Success state */
         a.export-btn.success {
             background-color: #28a745;
@@ -57,6 +65,7 @@
             border-color: #bd2130;
         }
         
+        
         /* Loading spinner animation */
         .loading-spinner {
             animation: spin 1s linear infinite;
@@ -74,15 +83,21 @@
     const USE_NET_IF_AVAILABLE = true;
     const DEBOUNCE_DELAY = 120;
     const URL_CLEANUP_DELAY = 10000;
-    
+    const MAX_RETRY_ATTEMPTS = 5;
+    const RETRY_DELAY_BASE = 1000; // Base delay in ms for retry backoff
+
     // UI Constants
     const LOADING_TEXT = 'Exportiere...';
     const SPINNER_SVG = '<svg class="loading-spinner" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" stroke-dasharray="31.416" stroke-dashoffset="31.416" fill="none" opacity="0.25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>';
-    
+
     // Cache and download management
     const orderCache = new Map();
     const activeDownloads = new Set(); // Track active order numbers
-    const MAX_CONCURRENT_DOWNLOADS = 5;
+    const downloadQueue = []; // Queue for pending downloads
+    const MAX_CONCURRENT_DOWNLOADS = 2;
+    const retryCounters = new Map(); // Track retry attempts per order
+
+    // Queue item structure: { orderNumber, siteName, filename, $btn, iconSelector, textSelector, originalIcon, originalText, retryAttempt }
 
     /**
      * Creates a debounced function that delays invoking func until after waitTime milliseconds
@@ -107,7 +122,7 @@
     function nullSafeString(value){
         return value == null ? '' : String(value);
     }
-    
+
     /**
      * Validates if the provided order number has the correct format
      * @param {string} orderNumber - The order number to validate
@@ -117,12 +132,24 @@
         return /^\d{6,}$/.test(String(orderNumber || ''));
     }
 
+    /**
+     * Safely matches a regex against a string and returns the specified group
+     * @param {string} inputString - The string to match against
+     * @param {RegExp} regex - The regular expression
+     * @param {number} groupIndex - The group index to return (default: 1)
+     * @returns {string} The matched group or empty string
+     */
     function nullSafeMatch(inputString, regex, groupIndex = 1) {
         if (!inputString) return '';
         const match = String(inputString).match(regex);
         return (match && match.length > groupIndex) ? match[groupIndex] : '';
     }
 
+    /**
+     * Parses a European formatted number (1.234,56) to a JavaScript number
+     * @param {string|number} input - The input to parse
+     * @returns {number} The parsed number or NaN
+     */
     function parseEuropeanNumber(input) {
         if (!input) return NaN;
         const cleanedNumber = parseFloat(String(input).trim().replace(/\./g,'').replace(',', '.').replace(/[^\d.-]/g, ''));
@@ -147,6 +174,12 @@
         'Dez.': '12'
     };
 
+    /**
+     * Formats various German date formats to DD.MM.YYYY format
+     * Supports both numeric (1.2.2024) and text formats (1. Januar 2024)
+     * @param {string|Date} input - The date input to format
+     * @returns {string} Formatted date as DD.MM.YYYY or empty string if invalid
+     */
     function formatGermanDate(input) {
         if (!input) return '';
         const stringInput = String(input).trim();
@@ -163,6 +196,11 @@
         return '';
     }
 
+    /**
+     * Converts an ISO date string to German DD.MM.YYYY format
+     * @param {string} isoString - ISO date string (e.g., "2024-01-15T10:30:00Z")
+     * @returns {string} Formatted date as DD.MM.YYYY or empty string if invalid
+     */
     function formatDateFromISO(isoString) {
         if (!isoString) return '';
         const date = new Date(isoString);
@@ -173,6 +211,11 @@
         return `${day}.${month}.${year}`;
     }
 
+    /**
+     * Sanitizes a filename by removing invalid characters and adding .csv extension
+     * @param {string} filename - The filename to sanitize
+     * @returns {string} Sanitized filename with .csv extension
+     */
     function sanitizeFilename(filename) {
         if (!filename) return `order-${Date.now()}.csv`;
         return String(filename).trim().replace(/[\\/:*?"<>|]+/g, '_') + '.csv';
@@ -241,10 +284,30 @@
   }`;
 
     /**
-     * Handles export errors with specific error types and user-friendly messages
-     * @param {Error} error - The error to handle
-     * @returns {string} User-friendly error message
+     * Determines if an error should trigger a retry attempt
+     * @param {Error} error - The error to check
+     * @returns {boolean} True if error should be retried
      */
+    function shouldRetryError(error) {
+        const message = error.message || '';
+
+        // Retry on network errors and server errors
+        if (error.name === 'NetworkError' || message.includes('Failed to fetch')) return true;
+        if (message.includes('GraphQL: leere Antwort')) return true;
+        if (message.includes('500') || message.includes('502') || message.includes('503') || message.includes('504')) return true;
+        if (message.includes('timeout')) return true;
+
+        // Don't retry on client errors (400-499)
+        if (message.includes('401') || message.includes('403') || message.includes('404')) return false;
+
+        // Don't retry on validation errors
+        if (message.includes('Ungültige Bestellnummer')) return false;
+        if (message.includes('Download bereits aktiv')) return false;
+
+        // Default: retry unknown errors
+        return true;
+    }
+
     /**
      * Handles export errors with specific error types and user-friendly messages
      * @param {Error} error - The error to handle
@@ -253,9 +316,9 @@
      */
     function handleExportError(error, orderNumber) {
         console.error(`Export error for order ${orderNumber}:`, error);
-        
+
         const orderContext = `Bestellung ${orderNumber}: `;
-        
+
         if (error.name === 'NetworkError' || error.message.includes('Failed to fetch')) {
             return orderContext + 'Netzwerkfehler - bitte Internetverbindung prüfen';
         }
@@ -268,70 +331,87 @@
         if (error.message.includes('500') || error.message.includes('502') || error.message.includes('503')) {
             return orderContext + 'Server-Fehler - bitte später erneut versuchen';
         }
-        
+
         return orderContext + `Export fehlgeschlagen: ${error.message || 'Unbekannter Fehler'}`;
     }
-    
+
     /**
-     * Fetches order data via GraphQL with caching and abort support
+     * Fetches order data via GraphQL with caching and retry support
      * @param {string} orderNumber - The order number to fetch
      * @param {string} siteName - The site name
+     * @param {number} retryAttempt - Current retry attempt (1-based)
      * @returns {Promise<Object>} The order data
      */
-    async function fetchOrderViaGraphQL(orderNumber, siteName) {
+    async function fetchOrderViaGraphQL(orderNumber, siteName, retryAttempt = 1) {
         // Input validation
         if (!validateOrderNumber(orderNumber)) {
             throw new Error('Ungültige Bestellnummer');
         }
-        
-        // Check cache first
-        const cacheKey = `${orderNumber}-${siteName}`;
-        if (orderCache.has(cacheKey)) {
-            return orderCache.get(cacheKey);
+
+        // Check cache first (only on first attempt)
+        if (retryAttempt === 1) {
+            const cacheKey = `${orderNumber}-${siteName}`;
+            if (orderCache.has(cacheKey)) {
+                return orderCache.get(cacheKey);
+            }
         }
-        
+
         // Check if download is already running for this order
         if (activeDownloads.has(orderNumber)) {
             throw new Error('Download bereits aktiv für diese Bestellung');
         }
-        
+
         // Track this download
         activeDownloads.add(orderNumber);
-        
+
         try {
             const body = {
                 query: GQL_QUERY,
                 variables: {siteName, orderNumber},
                 operationName: 'getDetailedClosedOrder'
             };
-            
-            const res = await fetch('https://portal.husqvarnagroup.com/hbd/graphql?', {
+
+            const res = await fetch('https://portal.husqvarnaGroup.com/hbd/graphql?', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {'content-type': 'application/json'},
                 body: JSON.stringify(body)
             });
-            
+
             if (!res.ok) {
                 throw new Error(`GraphQL HTTP ${res.status}`);
             }
-            
+
             const json = await res.json();
             const order = json?.data?.site?.commerce?.orders?.get;
-            
+
             if (!order) {
                 throw new Error('GraphQL: leere Antwort');
             }
-            
-            // Cache the result
+
+            // Cache the result on successful fetch
+            const cacheKey = `${orderNumber}-${siteName}`;
             orderCache.set(cacheKey, order);
-            
+
+            // Clear retry counter on success
+            retryCounters.delete(orderNumber);
+
             return order;
         } finally {
             activeDownloads.delete(orderNumber);
+            // Process next item in queue
+            setTimeout(() => processDownloadQueue(), 100);
         }
     }
 
+    /**
+     * Transforms order line data into CSV export format for JTL
+     * Calculates quantities, prices, and formats data according to JTL requirements
+     * @param {Array<Object>} rows - Array of order line data objects
+     * @param {string} innerOrderNumber - Internal order number (customer reference)
+     * @param {string} outerOrderNumber - External order number (system reference)
+     * @returns {Array<Object>} Array of objects formatted for CSV export
+     */
     function prepareCsvDataToExport(rows, innerOrderNumber, outerOrderNumber) {
         return rows.map((data) => {
             let vpe = parseInt(nullSafeMatch(data['Kommentar'], /^D-BE\S*\s*VPE=(\d+)/, 1), 10);
@@ -390,25 +470,16 @@
             'Tracking link': (firstDel?.shipmentInfos && firstDel.shipmentInfos[0]?.shipmentTrackingUrl) || ''
         };
     }
-    
+
     /**
      * Detects if we're on the order list overview page
      * @returns {boolean} True if on order list page
      */
-    function isOrderListPage() { 
-        return !!document.querySelector('[data-testid="order-list-page"]') && 
-               !!document.querySelector('div[role="table"]');
+    function isOrderListPage() {
+        return !!document.querySelector('[data-testid="order-list-page"]') &&
+            !!document.querySelector('div[role="table"]');
     }
-    
-    /**
-     * Creates a unified export handler for both layout types
-     * @param {string} iconSelector - CSS selector for the icon element
-     * @param {string} textSelector - CSS selector for the text element
-     * @param {string} orderNumber - The order number to export
-     * @param {string} filename - The filename for the download
-     * @param {jQuery} $btn - The button jQuery object
-     * @returns {Function} The event handler function
-     */
+
     /**
      * Checks if too many downloads are running concurrently
      * @returns {boolean} True if max concurrent downloads reached
@@ -416,7 +487,138 @@
     function isMaxConcurrentDownloadsReached() {
         return activeDownloads.size >= MAX_CONCURRENT_DOWNLOADS;
     }
-    
+
+
+    /**
+     * Processes the next item in the download queue if slots are available
+     */
+    function processDownloadQueue() {
+        if (downloadQueue.length === 0 || isMaxConcurrentDownloadsReached()) {
+            return;
+        }
+
+        const queueItem = downloadQueue.shift();
+        startDownload(queueItem);
+    }
+
+    /**
+     * Adds a download to the queue and processes it if possible
+     * @param {Object} queueItem - Download queue item with all necessary data
+     */
+    function enqueueDownload(queueItem) {
+        // Check if already in queue or downloading
+        if (activeDownloads.has(queueItem.orderNumber) ||
+            downloadQueue.some(item => item.orderNumber === queueItem.orderNumber)) {
+            return;
+        }
+
+        downloadQueue.push(queueItem);
+        updateQueuedButtonState(queueItem);
+        processDownloadQueue();
+    }
+
+    /**
+     * Updates button to show queued state
+     * @param {Object} queueItem - Queue item containing button and state info
+     */
+    function updateQueuedButtonState(queueItem) {
+        const { $btn, iconSelector, textSelector } = queueItem;
+        $btn.addClass('queued').attr('data-queued-state', 'true');
+        const $icon = $btn.find(iconSelector);
+        const $text = $btn.find(textSelector);
+
+        $icon.html('<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/></svg>');
+        if ($text.length > 0) {
+            $text.text(`In Warteschlange`);
+        }
+    }
+
+
+    /**
+     * Starts the actual download process for a queue item with retry support
+     * @param {Object} queueItem - Queue item containing all download data
+     */
+    async function startDownload(queueItem) {
+        const { orderNumber, siteName, filename, $btn, iconSelector, textSelector, retryAttempt = 1 } = queueItem;
+
+        // Start loading state with retry indicator
+        const buttonId = getButtonId(orderNumber);
+        $btn.removeClass('queued error').removeAttr('data-queued-state data-error-state')
+            .addClass('loading').attr('data-button-id', buttonId);
+
+        const $icon = $btn.find(iconSelector);
+        const $text = $btn.find(textSelector);
+
+        $icon.html(SPINNER_SVG);
+        if ($text.length > 0) {
+            const loadingText = retryAttempt >= 2 ? `${LOADING_TEXT} (${retryAttempt})` : LOADING_TEXT;
+            $text.text(loadingText);
+        }
+
+        try {
+            const order = await fetchOrderViaGraphQL(orderNumber, siteName, retryAttempt);
+            const innerOrderNumber = order.customerOrderNumber && order.customerOrderNumber !== '-' ? order.customerOrderNumber : order.orderNumber;
+            const outerOrderNumber = order.orderNumber;
+
+            const rows = (order.orderLines || []).map(mapGraphQLToRow);
+            const csv = $.csv.fromObjects(prepareCsvDataToExport(rows, innerOrderNumber, outerOrderNumber), {separator: ';'});
+            const url = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            link.click();
+
+            setTimeout(() => URL.revokeObjectURL(url), URL_CLEANUP_DELAY);
+
+            // Show success state permanently
+            $btn.removeClass('loading').addClass('success').attr('data-success-state', 'true');
+            $icon.html('<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>');
+            if ($text.length > 0) {
+                $text.text('Erfolgreich!');
+            }
+
+        } catch (error) {
+            // Check if we should retry
+            if (retryAttempt < MAX_RETRY_ATTEMPTS && shouldRetryError(error)) {
+                const nextAttempt = retryAttempt + 1;
+                const delay = RETRY_DELAY_BASE * Math.pow(2, retryAttempt - 1); // Exponential backoff
+
+                console.log(`Retry attempt ${nextAttempt} for order ${orderNumber} in ${delay}ms`);
+
+                // Update retry counter
+                retryCounters.set(orderNumber, nextAttempt);
+
+                // Schedule retry
+                setTimeout(() => {
+                    const retryQueueItem = { ...queueItem, retryAttempt: nextAttempt };
+                    startDownload(retryQueueItem);
+                }, delay);
+
+                return; // Don't process error state yet
+            }
+
+            // Max retries reached or non-retryable error
+            const userMessage = handleExportError(error, orderNumber);
+            retryCounters.delete(orderNumber);
+
+            // Show error state permanently with red highlighting
+            $btn.removeClass('loading').addClass('error').attr('data-error-state', 'true');
+            $icon.html('<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 6l12 12M6 18L18 6"/></svg>');
+            if ($text.length > 0) {
+                const errorText = retryAttempt >= 2 ? `Fehler! (${retryAttempt}/${MAX_RETRY_ATTEMPTS})` : 'Fehler!';
+                $text.text(errorText);
+            }
+
+            // Error is now only shown visually with red button
+            console.error(userMessage);
+        } finally {
+            activeDownloads.delete(orderNumber);
+            // Process next item in queue
+            setTimeout(() => processDownloadQueue(), 100);
+        }
+    }
+
     /**
      * Gets a unique button ID for tracking individual button states
      * @param {string} orderNumber - The order number
@@ -425,81 +627,72 @@
     function getButtonId(orderNumber) {
         return `export-btn-${orderNumber}`;
     }
-    
+
+    /**
+     * Creates a unified export handler for both layout types
+     * Handles loading states, error states, success states, and retry functionality
+     * @param {string} iconSelector - CSS selector for the icon element
+     * @param {string} textSelector - CSS selector for the text element
+     * @param {string} orderNumber - The order number to export
+     * @param {string} filename - The filename for the download
+     * @param {jQuery} $btn - The button jQuery object
+     * @returns {Function} The event handler function
+     */
+
     function createExportHandler(iconSelector, textSelector, orderNumber, filename, $btn) {
         return async (e) => {
             e.preventDefault();
-            
+
             // Check if already downloading this order
             if (activeDownloads.has(orderNumber)) {
                 return; // Silently ignore if already in progress
             }
-            
-            // If button is in error state, reset to original state and continue with download
+
+            // If button is in error or queued state, reset to original state and continue with download
             if ($btn.hasClass('error') || $btn.attr('data-error-state') === 'true') {
                 $btn.removeClass('error').removeAttr('data-error-state');
-                // Don't reset icon/text here - let the loading state handle it
+                // Clear retry counter for new manual attempt
+                retryCounters.delete(orderNumber);
             }
-            
-            // Check concurrent download limit
+            if ($btn.hasClass('queued') || $btn.attr('data-queued-state') === 'true') {
+                $btn.removeClass('queued').removeAttr('data-queued-state');
+                // Remove from queue if already queued
+                const queueIndex = downloadQueue.findIndex(item => item.orderNumber === orderNumber);
+                if (queueIndex !== -1) {
+                    downloadQueue.splice(queueIndex, 1);
+                }
+            }
+
+            // Check concurrent download limit - if reached, try to add to queue
             if (isMaxConcurrentDownloadsReached()) {
-                alert(`Maximale Anzahl gleichzeitiger Downloads erreicht (${MAX_CONCURRENT_DOWNLOADS}). Bitte warten Sie, bis ein Download abgeschlossen ist.`);
+                const queueItem = {
+                    orderNumber,
+                    siteName: extractSiteName(),
+                    filename,
+                    $btn,
+                    iconSelector,
+                    textSelector,
+                    originalIcon: $btn.find(iconSelector).html(),
+                    originalText: $btn.find(textSelector).text(),
+                    retryAttempt: 1
+                };
+                enqueueDownload(queueItem);
                 return;
             }
-            
-            // Start loading state
-            const buttonId = getButtonId(orderNumber);
-            $btn.addClass('loading').attr('data-button-id', buttonId);
-            const $icon = $btn.find(iconSelector);
-            const $text = $btn.find(textSelector);
-            const originalIcon = $icon.html();
-            const originalText = $text.text();
-            
-            $icon.html(SPINNER_SVG);
-            if ($text.length > 0) {
-                $text.text(LOADING_TEXT);
-            }
-            
-            const siteName = extractSiteName();
-            try {
-                const order = await fetchOrderViaGraphQL(orderNumber, siteName);
-                const innerOrderNumber = order.customerOrderNumber && order.customerOrderNumber !== '-' ? order.customerOrderNumber : order.orderNumber;
-                const outerOrderNumber = order.orderNumber;
 
-                const rows = (order.orderLines || []).map(mapGraphQLToRow);
-                const csv = $.csv.fromObjects(prepareCsvDataToExport(rows, innerOrderNumber, outerOrderNumber), {separator: ';'});
-                const url = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
-
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = filename;
-                link.click();
-
-                setTimeout(() => URL.revokeObjectURL(url), URL_CLEANUP_DELAY);
-                
-                // Show success state permanently
-                $btn.removeClass('loading').addClass('success').attr('data-success-state', 'true');
-                $icon.html('<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>');
-                if ($text.length > 0) {
-                    $text.text('Erfolgreich!');
-                }
-                
-            } catch (error) {
-                const userMessage = handleExportError(error, orderNumber);
-                
-                // Show error state permanently with red highlighting
-                $btn.removeClass('loading').addClass('error').attr('data-error-state', 'true');
-                $icon.html('<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 6l12 12M6 18L18 6"/></svg>');
-                if ($text.length > 0) {
-                    $text.text('Fehler!');
-                }
-                
-                // Error is now only shown visually with red button
-                console.error(userMessage);
-            } finally {
-                // Always remove from active downloads, regardless of success/error
-                activeDownloads.delete(orderNumber);
-            }
+            // Start download immediately
+            const queueItem = {
+                orderNumber,
+                siteName: extractSiteName(),
+                filename,
+                $btn,
+                iconSelector,
+                textSelector,
+                originalIcon: $btn.find(iconSelector).html(),
+                originalText: $btn.find(textSelector).text(),
+                retryAttempt: 1
+            };
+            startDownload(queueItem);
         };
     }
 
@@ -546,7 +739,7 @@
         const $btn = $(`
       <a class="export-btn b2b-ai b2b-am b2b-al" data-variant="secondary" data-size="compact" download="${filename}">
         <span class="b2b-bx" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28"><path fill="currentColor" d="M27.003 20..."></path></svg></span>
-        <span class="label_s">Export CSV für JTL (API)</span>
+        <span class="label_s">Export CSV für JTL</span>
       </a>
     `);
 
@@ -554,7 +747,7 @@
 
         $headerDiv.append($btn);
     }
-    
+
     /**
      * Extracts order ID from a detail link href
      * @param {string} href - The href attribute value
@@ -565,34 +758,34 @@
         const match = href.match(/orderId=(\d+)/);
         return match ? match[1] : '';
     }
-    
+
     /**
      * Attaches export buttons to all order rows in the order list table
      */
     function attachExportButtonsToOrderList() {
         const table = document.querySelector('[data-testid="order-list-page"] div[role="table"]');
         if (!table) return;
-        
+
         // Find all order rows (skip header row)
         const rows = table.querySelectorAll('div[role="row"]:not(.b2b-tm)');
-        
+
         rows.forEach(row => {
             // Skip if button already exists
             if (row.querySelector('.export-btn')) return;
-            
+
             // Find the detail link to extract order ID
             const detailLink = row.querySelector('a[data-testid="view-order-details-link"]');
             if (!detailLink) return;
-            
+
             const orderNumber = extractOrderIdFromHref(detailLink.href);
             if (!orderNumber || !validateOrderNumber(orderNumber)) return;
-            
+
             const filename = sanitizeFilename(orderNumber);
-            
+
             // Find the cell with the arrow (last cell)
             const arrowCell = row.querySelector('div[role="cell"]:last-child');
             if (!arrowCell) return;
-            
+
             // Create download button
             const $downloadBtn = $(`
                 <a class="export-btn b2b-ai b2b-am b2b-al" 
@@ -600,18 +793,19 @@
                    data-size="compact" 
                    download="${filename}" 
                    title="CSV Export für Bestellung ${orderNumber}"
-                   style="margin-left: 20px;">
+                   style="margin-left: 12px;">
                     <span class="b2b-ax" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28">
                             <path fill="currentColor" d="M27.003 20a1 1 0 0 1 .992.884l.007.116L28 26.003a2 2 0 0 1-1.85 1.994l-.15.005H2a2 2 0 0 1-1.995-1.85L0 26.002V21a1 1 0 0 1 1.993-.117L2 21v5.002h24L26.002 21a1 1 0 0 1 1-1m-13-20a1 1 0 0 1 .992.883l.007.117v16.585l6.293-6.292a1 1 0 0 1 1.492 1.327l-.078.087-8 8a1 1 0 0 1-.085.076l-.009.007-.028.021a1 1 0 0 1-.075.05l-.026.014a1 1 0 0 1-.08.04l-.038.016-.051.018-.018.006a1 1 0 0 1-.124.03l-.027.004a1 1 0 0 1-.146.011h-.033l-.052-.004.085.004a1 1 0 0 1-.18-.016h-.002l-.023-.005-.059-.014-.032-.01h-.002l-.014-.005a1 1 0 0 1-.095-.036l-.003-.002-.018-.008-.045-.023-.036-.02-.004-.003q0 .002-.005-.003l-.01-.006-.065-.044-.024-.018a1 1 0 0 1-.09-.08l-8-8a1 1 0 0 1 1.327-1.492l.087.078 6.293 6.292V1a1 1 0 0 1 1-1"></path>
                         </svg>
                     </span>
+                    <span style="width: max-content" class="b2b-au b2b-a0">JTL Export</span>
                 </a>
             `);
-            
+
             // Add event handler using the existing createExportHandler function
-            $downloadBtn.on('click', createExportHandler('.b2b-ax', '', orderNumber, filename, $downloadBtn));
-            
+            $downloadBtn.on('click', createExportHandler('.b2b-ax', '.b2b-au.b2b-a0', orderNumber, filename, $downloadBtn));
+
             // Insert after the arrow link
             $(arrowCell).append($downloadBtn);
         });
