@@ -94,7 +94,7 @@
     const orderCache = new Map();
     const activeDownloads = new Set(); // Track active order numbers
     const downloadQueue = []; // Queue for pending downloads
-    const MAX_CONCURRENT_DOWNLOADS = 2;
+    const MAX_CONCURRENT_DOWNLOADS = 5;
     const retryCounters = new Map(); // Track retry attempts per order
 
     // Queue item structure: { orderNumber, siteName, filename, $btn, iconSelector, textSelector, originalIcon, originalText, retryAttempt }
