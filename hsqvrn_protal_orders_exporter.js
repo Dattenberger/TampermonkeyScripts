@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.1.1
+// @version      2.1.2
 // @description  Exportiert Bestelldaten via GraphQL
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -26,13 +26,13 @@
             margin-left: 5px;
             transition: opacity 0.2s ease;
         }
-        
+
         /* Loading state */
         a.export-btn.loading {
             opacity: 0.7;
             pointer-events: none;
         }
-        
+
         /* Queued state */
         a.export-btn.queued {
             background-color: #ffc107;
@@ -40,37 +40,37 @@
             color: #212529;
             pointer-events: none;
         }
-        
+
         /* Success state */
         a.export-btn.success {
             background-color: #28a745;
             border-color: #28a745;
             color: white;
         }
-        
+
         a.export-btn.success:hover {
             background-color: #218838;
             border-color: #1e7e34;
         }
-        
+
         /* Error state */
         a.export-btn.error {
             background-color: #dc3545;
             border-color: #dc3545;
             color: white;
         }
-        
+
         a.export-btn.error:hover {
             background-color: #c82333;
             border-color: #bd2130;
         }
-        
-        
+
+
         /* Loading spinner animation */
         .loading-spinner {
             animation: spin 1s linear infinite;
         }
-        
+
         /* Keyframes for spinner rotation */
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -80,7 +80,6 @@
 
     // Configuration constants
     const DISCOUNT_FACTOR = 0.97;
-    const USE_NET_IF_AVAILABLE = true;
     const DEBOUNCE_DELAY = 120;
     const URL_CLEANUP_DELAY = 10000;
     const MAX_RETRY_ATTEMPTS = 5;
@@ -94,7 +93,7 @@
     const orderCache = new Map();
     const activeDownloads = new Set(); // Track active order numbers
     const downloadQueue = []; // Queue for pending downloads
-    const MAX_CONCURRENT_DOWNLOADS = 5;
+    const MAX_CONCURRENT_DOWNLOADS = 2;
     const retryCounters = new Map(); // Track retry attempts per order
 
     // Queue item structure: { orderNumber, siteName, filename, $btn, iconSelector, textSelector, originalIcon, originalText, retryAttempt }
@@ -422,7 +421,7 @@
             const baseQuantity = Number.isFinite(quantity) ? quantity : 0;
             const totalQuantity = Math.max(1, baseQuantity * vpe);
 
-            const totalPrice = parseEuropeanNumber(data['Gesamt']);
+            const totalPrice = data['Gesamt'];
             const purchasePriceNet = (Number.isFinite(totalPrice) && totalQuantity > 0) ? (totalPrice * DISCOUNT_FACTOR / totalQuantity) : NaN;
 
             return {
@@ -449,24 +448,18 @@
         const promised = firstDel?.promisedDispatchDate;
         const versendet = formatDateFromISO(promised) || formatDateFromISO(line.requestedDispatchDate);
 
-        // Bevorzuge totalNetPrice
-        const total = (USE_NET_IF_AVAILABLE && (line.totalNetPrice != null)) ? line.totalNetPrice : (line.totalNetPrice ?? line.totalGrossPrice);
-
-        // Beschreibung/Referenzen: erst Artikel-Objekt, dann ecom*-Felder
-        const beschreibung =
-            (line.article && (line.article.articleDescription || line.article.name)) ||
-            line.ecomArticleDescription ||
-            line.ecomCommercialReference ||
-            '';
+        const name = (line.article && line.article.name) || line.ecomArticleDescription;
+        const beschreibung = (line.article && line.article.articleDescription) || ''
+        const nameBeschreibung = (name + " " + beschreibung).trim();
 
         return {
             'Artikelnumer': line.unformattedArticleNumber || (line.article && line.article.id) || '',
             'Kommentar': line.customerOrderLineReference || '',
-            'Beschreibung': beschreibung,
+            'Beschreibung': nameBeschreibung,
             'Angefragt': formatDateFromISO(line.requestedDispatchDate),
             'Versendet': versendet,
             'Anz/Konf.': anzKonf,
-            'Gesamt': total != null ? String(total) : '',
+            'Gesamt': line.totalNetPrice,
             'Tracking link': (firstDel?.shipmentInfos && firstDel.shipmentInfos[0]?.shipmentTrackingUrl) || ''
         };
     }
@@ -788,10 +781,10 @@
 
             // Create download button
             const $downloadBtn = $(`
-                <a class="export-btn b2b-ai b2b-am b2b-al" 
-                   data-variant="secondary" 
-                   data-size="compact" 
-                   download="${filename}" 
+                <a class="export-btn b2b-ai b2b-am b2b-al"
+                   data-variant="secondary"
+                   data-size="compact"
+                   download="${filename}"
                    title="CSV Export für Bestellung ${orderNumber}"
                    style="margin-left: 12px;">
                     <span class="b2b-ax" aria-hidden="true">
