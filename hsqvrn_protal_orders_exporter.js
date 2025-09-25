@@ -692,7 +692,7 @@
     function attachExportButtonToNewLayout() {
         const $page = $('[data-testid="order-detail-page"]').first();
         if (!$page.length) return;
-        const $bar = $page.find('h1').parent().find('.b2b-ga.b2b-gu.b2b-gj').first();
+        const $bar = $page.find('h1').parent().find('h1 ~ div').first();
         if (!$bar.length) return;
         if ($bar.find('.export-btn').length) return;
 
@@ -700,7 +700,7 @@
         const filename = sanitizeFilename(orderNumber);
 
         const $btn = $(`
-      <a class="export-btn b2b-ai b2b-am b2b-al" data-variant="secondary" data-size="compact" download="${filename}" title="Export CSV für JTL (API)">
+      <a class="export-btn b2b-ar b2b-av b2b-au" data-variant="secondary" data-size="compact" download="${filename}" title="Export CSV für JTL (API)">
         <span class="b2b-ax" aria-hidden="true">
           <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28">
             <path fill="currentColor" d="M27.003 20a1 1 0 0 1 .992.884l.007.116L28 26.003a2 2 0 0 1-1.85 1.994l-.15.005H2a2 2 0 0 1-1.995-1.85L0 26.002V21a1 1 0 0 1 1.993-.117L2 21v5.002h24L26.002 21a1 1 0 0 1 1-1m-13-20a1 1 0 0 1 .992.883l.007.117v16.585l6.293-6.292a1 1 0 0 1 1.492 1.327l-.078.087-8 8a1 1 0 0 1-.085.076l-.009.007-.028.021a1 1 0 0 1-.075.05l-.026.014a1 1 0 0 1-.08.04l-.038.016-.051.018-.018.006a1 1 0 0 1-.124.03l-.027.004a1 1 0 0 1-.146.011h-.033l-.052-.004.085.004a1 1 0 0 1-.18-.016h-.002l-.023-.005-.059-.014-.032-.01h-.002l-.014-.005a1 1 0 0 1-.095-.036l-.003-.002-.018-.008-.045-.023-.036-.02-.004-.003q0 .002-.005-.003l-.01-.006-.065-.044-.024-.018a1 1 0 0 1-.09-.08l-8-8a1 1 0 0 1 1.327-1.492l.087.078 6.293 6.292V1a1 1 0 0 1 1-1"></path>
@@ -730,7 +730,7 @@
         const filename = sanitizeFilename(orderNumber);
 
         const $btn = $(`
-      <a class="export-btn b2b-ai b2b-am b2b-al" data-variant="secondary" data-size="compact" download="${filename}">
+      <a class="export-btn b2b-ar b2b-av b2b-au" data-variant="secondary" data-size="compact" download="${filename}">
         <span class="b2b-bx" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28"><path fill="currentColor" d="M27.003 20..."></path></svg></span>
         <span class="label_s">Export CSV für JTL</span>
       </a>
@@ -781,7 +781,7 @@
 
             // Create download button
             const $downloadBtn = $(`
-                <a class="export-btn b2b-ai b2b-am b2b-al"
+                <a class="export-btn b2b-ar b2b-av b2b-au"
                    data-variant="secondary"
                    data-size="compact"
                    download="${filename}"
