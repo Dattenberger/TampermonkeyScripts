@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.1.3
+// @version      2.1.4
 // @description  Exportiert Bestelldaten via GraphQL
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -25,6 +25,7 @@
             text-decoration: none;
             margin-left: 5px;
             transition: opacity 0.2s ease;
+            /*padding: 0.5em 1em !important;*/
         }
 
         /* Loading state */
@@ -701,16 +702,16 @@
 
         const $btn = $(`
       <a class="export-btn b2b-ar b2b-av b2b-au" data-variant="secondary" data-size="compact" download="${filename}" title="Export CSV für JTL (API)">
-        <span class="b2b-ax" aria-hidden="true">
+        <span class="b2b-a6" aria-hidden="true">
           <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28">
             <path fill="currentColor" d="M27.003 20a1 1 0 0 1 .992.884l.007.116L28 26.003a2 2 0 0 1-1.85 1.994l-.15.005H2a2 2 0 0 1-1.995-1.85L0 26.002V21a1 1 0 0 1 1.993-.117L2 21v5.002h24L26.002 21a1 1 0 0 1 1-1m-13-20a1 1 0 0 1 .992.883l.007.117v16.585l6.293-6.292a1 1 0 0 1 1.492 1.327l-.078.087-8 8a1 1 0 0 1-.085.076l-.009.007-.028.021a1 1 0 0 1-.075.05l-.026.014a1 1 0 0 1-.08.04l-.038.016-.051.018-.018.006a1 1 0 0 1-.124.03l-.027.004a1 1 0 0 1-.146.011h-.033l-.052-.004.085.004a1 1 0 0 1-.18-.016h-.002l-.023-.005-.059-.014-.032-.01h-.002l-.014-.005a1 1 0 0 1-.095-.036l-.003-.002-.018-.008-.045-.023-.036-.02-.004-.003q0 .002-.005-.003l-.01-.006-.065-.044-.024-.018a1 1 0 0 1-.09-.08l-8-8a1 1 0 0 1 1.327-1.492l.087.078 6.293 6.292V1a1 1 0 0 1 1-1"></path>
           </svg>
         </span>
-        <span class="b2b-au b2b-a0">Export CSV für JTL</span>
+        <span class="b2b-a4 b2b-a9">Export CSV für JTL</span>
       </a>
     `);
 
-        $btn.on('click', createExportHandler('.b2b-ax', '.b2b-au.b2b-a0', orderNumber, filename, $btn));
+        $btn.on('click', createExportHandler('.b2b-a6', '.b2b-a4.b2b-a9', orderNumber, filename, $btn));
 
         $bar.append($btn);
     }
@@ -731,12 +732,12 @@
 
         const $btn = $(`
       <a class="export-btn b2b-ar b2b-av b2b-au" data-variant="secondary" data-size="compact" download="${filename}">
-        <span class="b2b-bx" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28"><path fill="currentColor" d="M27.003 20..."></path></svg></span>
+        <span class="b2b-a6" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28"><path fill="currentColor" d="M27.003 20..."></path></svg></span>
         <span class="label_s">Export CSV für JTL</span>
       </a>
     `);
 
-        $btn.on('click', createExportHandler('.b2b-bx', '.label_s', orderNumber, filename, $btn));
+        $btn.on('click', createExportHandler('.b2b-a6', '.label_s', orderNumber, filename, $btn));
 
         $headerDiv.append($btn);
     }
@@ -787,17 +788,17 @@
                    download="${filename}"
                    title="CSV Export für Bestellung ${orderNumber}"
                    style="margin-left: 12px;">
-                    <span class="b2b-ax" aria-hidden="true">
+                    <span class="b2b-a6" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28">
                             <path fill="currentColor" d="M27.003 20a1 1 0 0 1 .992.884l.007.116L28 26.003a2 2 0 0 1-1.85 1.994l-.15.005H2a2 2 0 0 1-1.995-1.85L0 26.002V21a1 1 0 0 1 1.993-.117L2 21v5.002h24L26.002 21a1 1 0 0 1 1-1m-13-20a1 1 0 0 1 .992.883l.007.117v16.585l6.293-6.292a1 1 0 0 1 1.492 1.327l-.078.087-8 8a1 1 0 0 1-.085.076l-.009.007-.028.021a1 1 0 0 1-.075.05l-.026.014a1 1 0 0 1-.08.04l-.038.016-.051.018-.018.006a1 1 0 0 1-.124.03l-.027.004a1 1 0 0 1-.146.011h-.033l-.052-.004.085.004a1 1 0 0 1-.18-.016h-.002l-.023-.005-.059-.014-.032-.01h-.002l-.014-.005a1 1 0 0 1-.095-.036l-.003-.002-.018-.008-.045-.023-.036-.02-.004-.003q0 .002-.005-.003l-.01-.006-.065-.044-.024-.018a1 1 0 0 1-.09-.08l-8-8a1 1 0 0 1 1.327-1.492l.087.078 6.293 6.292V1a1 1 0 0 1 1-1"></path>
                         </svg>
                     </span>
-                    <span style="width: max-content" class="b2b-au b2b-a0">JTL Export</span>
+                    <span style="width: max-content" class="b2b-a4 b2b-a9">JTL Export</span>
                 </a>
             `);
 
             // Add event handler using the existing createExportHandler function
-            $downloadBtn.on('click', createExportHandler('.b2b-ax', '.b2b-au.b2b-a0', orderNumber, filename, $downloadBtn));
+            $downloadBtn.on('click', createExportHandler('.b2b-a6', '.b2b-a4.b2b-a9', orderNumber, filename, $downloadBtn));
 
             // Insert after the arrow link
             $(arrowCell).append($downloadBtn);
