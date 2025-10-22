@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.1.5
+// @version      2.1.6
 // @description  Exportiert Bestelldaten via GraphQL
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -822,13 +822,7 @@
             if (!location.pathname.includes('/de/orders')) return;
             if (mutations.some(mutation => mutation.type === 'childList')) handleDOMChanges();
         });
-
-        // Observe a more specific container if possible, fallback to body
-        const observeTarget = document.querySelector('main') ||
-                              document.querySelector('[role="main"]') ||
-                              document.body;
-
-        mutationObserver.observe(observeTarget, {subtree: true, childList: true});
+        mutationObserver.observe(document.body, {subtree: true, childList: true});
     }
 
     jQuery(document).ready(initializeScript);
