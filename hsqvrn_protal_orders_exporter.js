@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.1.4
+// @version      2.1.5
 // @description  Exportiert Bestelldaten via GraphQL
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -80,6 +80,11 @@
     `);
 
     // Configuration constants
+    /**
+     * Skonto-Faktor für Husqvarna-Bestellungen (3% Rabatt bei Zahlung innerhalb von 14 Tagen)
+     * Formel: nettoPreis * DISCOUNT_FACTOR = nettoPreis * 0.97 = nettoPreis - (nettoPreis * 0.03)
+     * @constant {number}
+     */
     const DISCOUNT_FACTOR = 0.97;
     const DEBOUNCE_DELAY = 120;
     const URL_CLEANUP_DELAY = 10000;
@@ -371,7 +376,7 @@
                 operationName: 'getDetailedClosedOrder'
             };
 
-            const res = await fetch('https://portal.husqvarnaGroup.com/hbd/graphql?', {
+            const res = await fetch('https://portal.husqvarnagroup.com/hbd/graphql?', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {'content-type': 'application/json'},
@@ -817,7 +822,13 @@
             if (!location.pathname.includes('/de/orders')) return;
             if (mutations.some(mutation => mutation.type === 'childList')) handleDOMChanges();
         });
-        mutationObserver.observe(document.body, {subtree: true, childList: true});
+
+        // Observe a more specific container if possible, fallback to body
+        const observeTarget = document.querySelector('main') ||
+                              document.querySelector('[role="main"]') ||
+                              document.body;
+
+        mutationObserver.observe(observeTarget, {subtree: true, childList: true});
     }
 
     jQuery(document).ready(initializeScript);
