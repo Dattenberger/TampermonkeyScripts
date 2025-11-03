@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.1.6
+// @version      2.1.7
 // @description  Exportiert Bestelldaten via GraphQL
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -26,11 +26,20 @@
             margin-left: 5px;
             transition: opacity 0.2s ease;
             /*padding: 0.5em 1em !important;*/
+            border-radius: 8px;
+            padding: 12px 24px;
+            border: 1px solid #3d3d3c;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+            line-height: 16px;
+            font-size: 14px;
+            transition: unset;
+            text-transform: uppercase;
         }
 
         /* Loading state */
         a.export-btn.loading {
-            opacity: 0.7;
+            background: #6f6f6f;
+            color: white;
             pointer-events: none;
         }
 
@@ -706,17 +715,16 @@
         const filename = sanitizeFilename(orderNumber);
 
         const $btn = $(`
-      <a class="export-btn b2b-ar b2b-av b2b-au" data-variant="secondary" data-size="compact" download="${filename}" title="Export CSV für JTL (API)">
-        <span class="b2b-a6" aria-hidden="true">
+      <a class="export-btn" data-variant="secondary" data-size="compact" download="${filename}" title="Export CSV für JTL (API)">
+        <span class="export-icon" aria-hidden="true">
           <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28">
             <path fill="currentColor" d="M27.003 20a1 1 0 0 1 .992.884l.007.116L28 26.003a2 2 0 0 1-1.85 1.994l-.15.005H2a2 2 0 0 1-1.995-1.85L0 26.002V21a1 1 0 0 1 1.993-.117L2 21v5.002h24L26.002 21a1 1 0 0 1 1-1m-13-20a1 1 0 0 1 .992.883l.007.117v16.585l6.293-6.292a1 1 0 0 1 1.492 1.327l-.078.087-8 8a1 1 0 0 1-.085.076l-.009.007-.028.021a1 1 0 0 1-.075.05l-.026.014a1 1 0 0 1-.08.04l-.038.016-.051.018-.018.006a1 1 0 0 1-.124.03l-.027.004a1 1 0 0 1-.146.011h-.033l-.052-.004.085.004a1 1 0 0 1-.18-.016h-.002l-.023-.005-.059-.014-.032-.01h-.002l-.014-.005a1 1 0 0 1-.095-.036l-.003-.002-.018-.008-.045-.023-.036-.02-.004-.003q0 .002-.005-.003l-.01-.006-.065-.044-.024-.018a1 1 0 0 1-.09-.08l-8-8a1 1 0 0 1 1.327-1.492l.087.078 6.293 6.292V1a1 1 0 0 1 1-1"></path>
           </svg>
         </span>
-        <span class="b2b-a4 b2b-a9">Export CSV für JTL</span>
+        <span class="export-text">Export CSV für JTL</span>
       </a>
     `);
-
-        $btn.on('click', createExportHandler('.b2b-a6', '.b2b-a4.b2b-a9', orderNumber, filename, $btn));
+        $btn.on('click', createExportHandler('.export-icon', '.export-text', orderNumber, filename, $btn));
 
         $bar.append($btn);
     }
@@ -736,13 +744,13 @@
         const filename = sanitizeFilename(orderNumber);
 
         const $btn = $(`
-      <a class="export-btn b2b-ar b2b-av b2b-au" data-variant="secondary" data-size="compact" download="${filename}">
-        <span class="b2b-a6" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28"><path fill="currentColor" d="M27.003 20..."></path></svg></span>
-        <span class="label_s">Export CSV für JTL</span>
+      <a class="export-btn" data-variant="secondary" data-size="compact" download="${filename}">
+        <span class="export-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28"><path fill="currentColor" d="M27.003 20..."></path></svg></span>
+        <span class="export-text">Export CSV für JTL</span>
       </a>
     `);
 
-        $btn.on('click', createExportHandler('.b2b-a6', '.label_s', orderNumber, filename, $btn));
+        $btn.on('click', createExportHandler('.export-icon', '.export-text', orderNumber, filename, $btn));
 
         $headerDiv.append($btn);
     }
@@ -787,23 +795,23 @@
 
             // Create download button
             const $downloadBtn = $(`
-                <a class="export-btn b2b-ar b2b-av b2b-au"
+                <a class="export-btn"
                    data-variant="secondary"
                    data-size="compact"
                    download="${filename}"
                    title="CSV Export für Bestellung ${orderNumber}"
                    style="margin-left: 12px;">
-                    <span class="b2b-a6" aria-hidden="true">
+                    <span class="export-icon" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28">
                             <path fill="currentColor" d="M27.003 20a1 1 0 0 1 .992.884l.007.116L28 26.003a2 2 0 0 1-1.85 1.994l-.15.005H2a2 2 0 0 1-1.995-1.85L0 26.002V21a1 1 0 0 1 1.993-.117L2 21v5.002h24L26.002 21a1 1 0 0 1 1-1m-13-20a1 1 0 0 1 .992.883l.007.117v16.585l6.293-6.292a1 1 0 0 1 1.492 1.327l-.078.087-8 8a1 1 0 0 1-.085.076l-.009.007-.028.021a1 1 0 0 1-.075.05l-.026.014a1 1 0 0 1-.08.04l-.038.016-.051.018-.018.006a1 1 0 0 1-.124.03l-.027.004a1 1 0 0 1-.146.011h-.033l-.052-.004.085.004a1 1 0 0 1-.18-.016h-.002l-.023-.005-.059-.014-.032-.01h-.002l-.014-.005a1 1 0 0 1-.095-.036l-.003-.002-.018-.008-.045-.023-.036-.02-.004-.003q0 .002-.005-.003l-.01-.006-.065-.044-.024-.018a1 1 0 0 1-.09-.08l-8-8a1 1 0 0 1 1.327-1.492l.087.078 6.293 6.292V1a1 1 0 0 1 1-1"></path>
                         </svg>
                     </span>
-                    <span style="width: max-content" class="b2b-a4 b2b-a9">JTL Export</span>
+                    <span style="width: max-content" class="export-text">JTL Export</span>
                 </a>
             `);
 
             // Add event handler using the existing createExportHandler function
-            $downloadBtn.on('click', createExportHandler('.b2b-a6', '.b2b-a4.b2b-a9', orderNumber, filename, $downloadBtn));
+            $downloadBtn.on('click', createExportHandler('.export-icon', '.export-text', orderNumber, filename, $downloadBtn));
 
             // Insert after the arrow link
             $(arrowCell).append($downloadBtn);
