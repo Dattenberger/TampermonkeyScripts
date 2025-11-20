@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.1.7
-// @description  Exportiert Bestelldaten via GraphQL
+// @version      2.2.0
+// @description  Exportiert Bestelldaten via GraphQL (mit Massen-Download-Feature)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
 // @grant        GM_addStyle
@@ -85,6 +85,73 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+
+        /* Bulk download container */
+        .bulk-download-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+        }
+
+        /* Bulk download input */
+        .bulk-download-input {
+            flex: 1;
+            padding: 12px 16px;
+            font-size: 14px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+            transition: border-color 0.2s ease;
+        }
+
+        .bulk-download-input:focus {
+            outline: none;
+            border-color: #3d3d3c;
+        }
+
+        .bulk-download-input::placeholder {
+            color: #6c757d;
+        }
+
+        /* Bulk download button */
+        .bulk-download-btn {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+            background: #3d3d3c;
+            color: white;
+            border: 1px solid #3d3d3c;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+            transition: background-color 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .bulk-download-btn:hover {
+            background: #2d2d2c;
+        }
+
+        .bulk-download-btn:disabled {
+            background: #6f6f6f;
+            border-color: #6f6f6f;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        /* Bulk download status */
+        .bulk-download-status {
+            font-size: 13px;
+            color: #6c757d;
+            margin-left: 8px;
         }
     `);
 
@@ -818,11 +885,152 @@
         });
     }
 
+    /**
+     * Handles bulk download of multiple orders
+     * @param {string} inputValue - Comma or space separated order numbers
+     * @returns {Object} Status object with success/error information
+     */
+    function handleBulkDownload(inputValue) {
+        if (!inputValue || !inputValue.trim()) {
+            return { success: false, message: 'Bitte Bestellnummern eingeben' };
+        }
+
+        // Parse input - support comma, semicolon, space, or newline separated values
+        const orderNumbers = inputValue
+            .split(/[,;\s\n]+/)
+            .map(num => num.trim())
+            .filter(num => num.length > 0);
+
+        if (orderNumbers.length === 0) {
+            return { success: false, message: 'Keine gültigen Bestellnummern gefunden' };
+        }
+
+        // Validate all order numbers
+        const invalidNumbers = orderNumbers.filter(num => !validateOrderNumber(num));
+        if (invalidNumbers.length > 0) {
+            return {
+                success: false,
+                message: `Ungültige Bestellnummern: ${invalidNumbers.join(', ')}`
+            };
+        }
+
+        // Get site name
+        const siteName = extractSiteName();
+
+        // Queue all downloads
+        let queuedCount = 0;
+        let skippedCount = 0;
+
+        orderNumbers.forEach(orderNumber => {
+            // Skip if already in queue or downloading
+            if (activeDownloads.has(orderNumber) ||
+                downloadQueue.some(item => item.orderNumber === orderNumber)) {
+                skippedCount++;
+                return;
+            }
+
+            const filename = sanitizeFilename(orderNumber);
+
+            // Create a virtual button for tracking (not attached to DOM)
+            const $virtualBtn = $('<a class="export-btn"></a>');
+            $virtualBtn.append('<span class="export-icon"></span>');
+            $virtualBtn.append('<span class="export-text"></span>');
+
+            const queueItem = {
+                orderNumber,
+                siteName,
+                filename,
+                $btn: $virtualBtn,
+                iconSelector: '.export-icon',
+                textSelector: '.export-text',
+                originalIcon: '',
+                originalText: '',
+                retryAttempt: 1
+            };
+
+            enqueueDownload(queueItem);
+            queuedCount++;
+        });
+
+        return {
+            success: true,
+            message: `${queuedCount} Bestellung(en) zur Warteschlange hinzugefügt${skippedCount > 0 ? `, ${skippedCount} übersprungen (bereits in Warteschlange)` : ''}`
+        };
+    }
+
+    /**
+     * Attaches the bulk download UI to the order list page
+     */
+    function attachBulkDownloadUI() {
+        if (!isOrderListPage()) return;
+
+        const ordersContainer = document.querySelector('#orders');
+        if (!ordersContainer) return;
+
+        // Check if UI already exists
+        if (ordersContainer.querySelector('.bulk-download-container')) return;
+
+        // Create the bulk download UI element
+        const bulkDownloadUI = document.createElement('div');
+        bulkDownloadUI.className = 'bulk-download-container';
+        bulkDownloadUI.innerHTML = `
+            <input
+                type="text"
+                class="bulk-download-input"
+                placeholder="Bestellnummern eingeben (durch Komma, Leerzeichen oder Zeilenumbruch getrennt)"
+                aria-label="Bestellnummern für Massendownload"
+            />
+            <button
+                class="bulk-download-btn"
+                type="button"
+            >
+                Herunterladen
+            </button>
+            <span class="bulk-download-status"></span>
+        `;
+
+        // Insert as first child
+        ordersContainer.insertBefore(bulkDownloadUI, ordersContainer.firstChild);
+
+        // Add event handlers
+        const input = bulkDownloadUI.querySelector('.bulk-download-input');
+        const button = bulkDownloadUI.querySelector('.bulk-download-btn');
+        const statusSpan = bulkDownloadUI.querySelector('.bulk-download-status');
+
+        button.addEventListener('click', () => {
+            const inputValue = input.value;
+            const result = handleBulkDownload(inputValue);
+
+            // Display status message
+            statusSpan.textContent = result.message;
+            statusSpan.style.color = result.success ? '#28a745' : '#dc3545';
+
+            // Clear input on success
+            if (result.success) {
+                input.value = '';
+                // Clear status message after 5 seconds
+                setTimeout(() => {
+                    statusSpan.textContent = '';
+                }, 5000);
+            }
+        });
+
+        // Allow Enter key to trigger download
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                button.click();
+            }
+        });
+    }
+
     function initializeScript() {
         const handleDOMChanges = debounce(() => {
             if (document.querySelector('[data-testid="order-detail-page"]')) attachExportButtonToNewLayout();
             if (document.querySelector('div#ui-modal-target article header')) attachExportButtonToOldModal();
-            if (isOrderListPage()) attachExportButtonsToOrderList();
+            if (isOrderListPage()) {
+                attachBulkDownloadUI();
+                attachExportButtonsToOrderList();
+            }
         }, 120);
         handleDOMChanges();
 
