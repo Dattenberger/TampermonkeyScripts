@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.4.2
+// @version      2.4.3
 // @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status (Refactored)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -505,8 +505,8 @@
                 return { valid: [], invalid: [] };
             }
 
-            // Split by comma, space, or question mark (one or more)
-            const parts = input.trim().split(/[,\s?]+/).filter(part => part.length > 0);
+            // Split by comma, space, or semicolon (one or more)
+            const parts = input.trim().split(/[,\s;]+/).filter(part => part.length > 0);
 
             const valid = [];
             const invalid = [];
@@ -1316,7 +1316,7 @@
                     <input type="text"
                            id="datte-custom-order-number"
                            class="datte-custom-order-input"
-                           placeholder="Auftragsnummer(n) - mehrere mit Komma, Leerzeichen oder ? trennen"
+                           placeholder="Auftragsnummer(n) - mehrere mit Komma, Leerzeichen oder Semikolon trennen"
                            autocomplete="off">
                     <div class="datte-custom-order-error" id="datte-custom-order-error">
                         Fehlerhafte Eingabe: Nur Zahlen sind erlaubt
