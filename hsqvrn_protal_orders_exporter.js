@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.4.3
+// @version      2.4.4
 // @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status (Refactored)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -237,12 +237,10 @@
                 border-radius: 4px;
                 max-height: 200px;
                 overflow-y: auto;
-            }
-
-            .datte-confirm-order-item {
-                padding: 6px 0;
                 font-family: monospace;
                 font-size: 14px;
+                line-height: 1.6;
+                word-break: break-all;
             }
 
             .datte-confirm-actions {
@@ -1107,6 +1105,9 @@
      */
     function showConfirmModal(orderNumbers, inputElement) {
         return new Promise((resolve) => {
+            // Sort order numbers
+            const sortedNumbers = [...orderNumbers].sort((a, b) => a.localeCompare(b));
+
             // Create modal overlay
             const modal = document.createElement('div');
             modal.className = 'datte-confirm-modal';
@@ -1118,7 +1119,7 @@
                     <div class="datte-confirm-body">
                         <p>Möchten Sie wirklich ${orderNumbers.length} Aufträge herunterladen?</p>
                         <div class="datte-confirm-order-list">
-                            ${orderNumbers.map(num => `<div class="datte-confirm-order-item">${num}</div>`).join('')}
+                            ${sortedNumbers.join(', ')}
                         </div>
                     </div>
                     <div class="datte-confirm-actions">
@@ -1316,7 +1317,7 @@
                     <input type="text"
                            id="datte-custom-order-number"
                            class="datte-custom-order-input"
-                           placeholder="Auftragsnummer(n) - mehrere mit Komma, Leerzeichen oder Semikolon trennen"
+                           placeholder="Auftragsnummer(n) - mehrere mit Leerzeichen, Komma oder Semikolon trennen"
                            autocomplete="off">
                     <div class="datte-custom-order-error" id="datte-custom-order-error">
                         Fehlerhafte Eingabe: Nur Zahlen sind erlaubt
