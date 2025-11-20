@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.1.7
-// @description  Exportiert Bestelldaten via GraphQL
+// @version      2.2.0
+// @description  Exportiert Bestelldaten via GraphQL mit individueller Bestellnummern-Eingabe
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
 // @grant        GM_addStyle
@@ -85,6 +85,114 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+
+        /* Custom order input section */
+        #orders {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #orders .input-group {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        #orders .input-wrapper {
+            flex: 1;
+            min-width: 200px;
+            max-width: 400px;
+        }
+
+        #orders label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #3d3d3c;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+        }
+
+        #orders input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #3d3d3c;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+            transition: border-color 0.2s ease;
+        }
+
+        #orders input[type="text"]:focus {
+            outline: none;
+            border-color: #000;
+        }
+
+        #orders input[type="text"].error {
+            border-color: #dc3545;
+        }
+
+        #orders .error-message {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 6px;
+            display: none;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+        }
+
+        #orders .error-message.show {
+            display: block;
+        }
+
+        #orders .download-btn {
+            margin-top: 28px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: 1px solid #3d3d3c;
+            background: white;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+            line-height: 16px;
+            font-size: 14px;
+            text-transform: uppercase;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+
+        #orders .download-btn:hover:not(.loading):not(.disabled) {
+            background: #f5f5f5;
+        }
+
+        #orders .download-btn.loading {
+            background: #6f6f6f;
+            color: white;
+            pointer-events: none;
+        }
+
+        #orders .download-btn.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        #orders .download-btn.success {
+            background-color: #28a745;
+            border-color: #28a745;
+            color: white;
+        }
+
+        #orders .download-btn.error {
+            background-color: #dc3545;
+            border-color: #dc3545;
+            color: white;
         }
     `);
 
@@ -704,6 +812,146 @@
         };
     }
 
+    /**
+     * Creates and attaches custom order number input UI to order list page
+     */
+    function attachCustomOrderInput() {
+        const orderListPage = document.querySelector('[data-testid="order-list-page"]');
+        if (!orderListPage) return;
+
+        // Check if already exists
+        if (document.getElementById('orders')) return;
+
+        // Create the custom input container
+        const ordersDiv = document.createElement('div');
+        ordersDiv.id = 'orders';
+        ordersDiv.innerHTML = `
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <label for="custom-order-number">Individuelle Bestellnummer</label>
+                    <input type="text"
+                           id="custom-order-number"
+                           placeholder="Bestellnummer eingeben (nur Zahlen)"
+                           autocomplete="off">
+                    <div class="error-message" id="order-number-error">
+                        Fehlerhafte Eingabe: Nur Zahlen sind erlaubt
+                    </div>
+                </div>
+                <button class="download-btn" id="custom-order-download">
+                    <span class="download-icon" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28">
+                            <path fill="currentColor" d="M27.003 20a1 1 0 0 1 .992.884l.007.116L28 26.003a2 2 0 0 1-1.85 1.994l-.15.005H2a2 2 0 0 1-1.995-1.85L0 26.002V21a1 1 0 0 1 1.993-.117L2 21v5.002h24L26.002 21a1 1 0 0 1 1-1m-13-20a1 1 0 0 1 .992.883l.007.117v16.585l6.293-6.292a1 1 0 0 1 1.492 1.327l-.078.087-8 8a1 1 0 0 1-.085.076l-.009.007-.028.021a1 1 0 0 1-.075.05l-.026.014a1 1 0 0 1-.08.04l-.038.016-.051.018-.018.006a1 1 0 0 1-.124.03l-.027.004a1 1 0 0 1-.146.011h-.033l-.052-.004.085.004a1 1 0 0 1-.18-.016h-.002l-.023-.005-.059-.014-.032-.01h-.002l-.014-.005a1 1 0 0 1-.095-.036l-.003-.002-.018-.008-.045-.023-.036-.02-.004-.003q0 .002-.005-.003l-.01-.006-.065-.044-.024-.018a1 1 0 0 1-.09-.08l-8-8a1 1 0 0 1 1.327-1.492l.087.078 6.293 6.292V1a1 1 0 0 1 1-1"></path>
+                        </svg>
+                    </span>
+                    <span class="download-text">Herunterladen</span>
+                </button>
+            </div>
+        `;
+
+        // Insert as first child of order list page
+        orderListPage.insertBefore(ordersDiv, orderListPage.firstChild);
+
+        // Get references to elements
+        const input = document.getElementById('custom-order-number');
+        const downloadBtn = document.getElementById('custom-order-download');
+        const errorMsg = document.getElementById('order-number-error');
+
+        /**
+         * Validates the input and shows/hides error message
+         * @returns {boolean} True if valid
+         */
+        function validateInput() {
+            const value = input.value.trim();
+            const isValid = value.length > 0 && /^\d+$/.test(value) && value.length >= 6;
+
+            if (!isValid && value.length > 0) {
+                input.classList.add('error');
+                errorMsg.classList.add('show');
+                return false;
+            } else {
+                input.classList.remove('error');
+                errorMsg.classList.remove('show');
+                return isValid;
+            }
+        }
+
+        /**
+         * Triggers the download for the custom order number
+         */
+        async function handleCustomOrderDownload() {
+            if (!validateInput()) {
+                return;
+            }
+
+            const orderNumber = input.value.trim();
+            const siteName = extractSiteName();
+            const filename = sanitizeFilename(orderNumber);
+
+            // Create jQuery wrapper for button
+            const $btn = $(downloadBtn);
+            const iconSelector = '.download-icon';
+            const textSelector = '.download-text';
+
+            // Disable input during download
+            input.disabled = true;
+
+            // Create queue item and start download
+            const queueItem = {
+                orderNumber,
+                siteName,
+                filename,
+                $btn,
+                iconSelector,
+                textSelector,
+                originalIcon: $btn.find(iconSelector).html(),
+                originalText: $btn.find(textSelector).text(),
+                retryAttempt: 1
+            };
+
+            // Reset button state if it was in error or success
+            $btn.removeClass('error success queued').removeAttr('data-error-state data-success-state data-queued-state');
+
+            // Check if max concurrent downloads reached
+            if (isMaxConcurrentDownloadsReached()) {
+                enqueueDownload(queueItem);
+            } else {
+                await startDownload(queueItem);
+            }
+
+            // Re-enable input and clear it after successful queue/start
+            setTimeout(() => {
+                input.disabled = false;
+                input.value = '';
+                input.focus();
+            }, 500);
+        }
+
+        // Add input validation on input event
+        input.addEventListener('input', () => {
+            // Only validate if there's content
+            if (input.value.trim().length > 0) {
+                validateInput();
+            } else {
+                input.classList.remove('error');
+                errorMsg.classList.remove('show');
+            }
+        });
+
+        // Add Enter key listener
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleCustomOrderDownload();
+            }
+        });
+
+        // Add click listener to download button
+        downloadBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleCustomOrderDownload();
+        });
+    }
+
     function attachExportButtonToNewLayout() {
         const $page = $('[data-testid="order-detail-page"]').first();
         if (!$page.length) return;
@@ -822,7 +1070,10 @@
         const handleDOMChanges = debounce(() => {
             if (document.querySelector('[data-testid="order-detail-page"]')) attachExportButtonToNewLayout();
             if (document.querySelector('div#ui-modal-target article header')) attachExportButtonToOldModal();
-            if (isOrderListPage()) attachExportButtonsToOrderList();
+            if (isOrderListPage()) {
+                attachCustomOrderInput();
+                attachExportButtonsToOrderList();
+            }
         }, 120);
         handleDOMChanges();
 
