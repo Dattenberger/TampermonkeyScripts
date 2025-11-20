@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.2.3
-// @description  Exportiert Bestelldaten via GraphQL mit individueller Bestellnummern-Eingabe
+// @version      2.3.0
+// @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
 // @grant        GM_addStyle
@@ -194,6 +194,192 @@
             border-color: #dc3545;
             color: white;
         }
+
+        /* Confirmation Modal */
+        .datte-confirm-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .datte-confirm-dialog {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: slideIn 0.2s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .datte-confirm-header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            color: #3d3d3c;
+        }
+
+        .datte-confirm-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+            color: #3d3d3c;
+        }
+
+        .datte-confirm-order-list {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .datte-confirm-order-item {
+            padding: 6px 0;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .datte-confirm-actions {
+            padding: 15px 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .datte-confirm-btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: 1px solid #3d3d3c;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .datte-confirm-btn-cancel {
+            background: white;
+            color: #3d3d3c;
+        }
+
+        .datte-confirm-btn-cancel:hover {
+            background: #f5f5f5;
+        }
+
+        .datte-confirm-btn-ok {
+            background: #3d3d3c;
+            color: white;
+            border-color: #3d3d3c;
+        }
+
+        .datte-confirm-btn-ok:hover {
+            background: #2d2d2c;
+        }
+
+        /* Download Status Display */
+        .datte-download-status-container {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .datte-download-status-header {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: #3d3d3c;
+        }
+
+        .datte-download-status-count {
+            background: #3d3d3c;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .datte-download-status-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .datte-download-status-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+            font-family: "Husqvarna Gothic", Arial, sans-serif;
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
+
+        .datte-download-status-item.status-pending {
+            border-left: 3px solid #ffc107;
+        }
+
+        .datte-download-status-item.status-loading {
+            border-left: 3px solid #6f6f6f;
+        }
+
+        .datte-download-status-item.status-success {
+            border-left: 3px solid #28a745;
+        }
+
+        .datte-download-status-item.status-error {
+            border-left: 3px solid #dc3545;
+        }
+
+        .datte-download-status-number {
+            font-family: monospace;
+            font-weight: 600;
+            color: #3d3d3c;
+            min-width: 80px;
+        }
+
+        .datte-download-status-icon {
+            flex-shrink: 0;
+        }
+
+        .datte-download-status-text {
+            flex: 1;
+            color: #666;
+        }
     `);
 
     // Configuration constants
@@ -207,6 +393,7 @@
     const URL_CLEANUP_DELAY = 10000;
     const MAX_RETRY_ATTEMPTS = 5;
     const RETRY_DELAY_BASE = 1000; // Base delay in ms for retry backoff
+    const MAX_MULTI_ORDER_LIMIT = 20; // Maximum number of orders that can be downloaded at once
 
     // UI Constants
     const LOADING_TEXT = 'Exportiere...';
@@ -218,6 +405,7 @@
     const downloadQueue = []; // Queue for pending downloads
     const MAX_CONCURRENT_DOWNLOADS = 2;
     const retryCounters = new Map(); // Track retry attempts per order
+    const downloadStatusItems = new Map(); // Track status display items per order number
 
     // Queue item structure: { orderNumber, siteName, filename, $btn, iconSelector, textSelector, originalIcon, originalText, retryAttempt }
 
@@ -252,6 +440,34 @@
      */
     function validateOrderNumber(orderNumber) {
         return /^\d{6,}$/.test(String(orderNumber || ''));
+    }
+
+    /**
+     * Parses multiple order numbers from input string with various separators
+     * @param {string} input - The input string with one or more order numbers
+     * @returns {Object} Object with valid array and invalid array { valid: [], invalid: [] }
+     */
+    function parseOrderNumbers(input) {
+        if (!input || typeof input !== 'string') {
+            return { valid: [], invalid: [] };
+        }
+
+        // Split by comma, space, or question mark (one or more)
+        const parts = input.trim().split(/[,\s?]+/).filter(part => part.length > 0);
+
+        const valid = [];
+        const invalid = [];
+
+        parts.forEach(part => {
+            const trimmed = part.trim();
+            if (validateOrderNumber(trimmed)) {
+                valid.push(trimmed);
+            } else if (trimmed.length > 0) {
+                invalid.push(trimmed);
+            }
+        });
+
+        return { valid, invalid };
     }
 
     /**
@@ -655,7 +871,7 @@
      * @param {Object} queueItem - Queue item containing all download data
      */
     async function startDownload(queueItem) {
-        const { orderNumber, siteName, filename, $btn, iconSelector, textSelector, retryAttempt = 1 } = queueItem;
+        const { orderNumber, siteName, filename, $btn, iconSelector, textSelector, retryAttempt = 1, isCustomOrderInput = false } = queueItem;
 
         // Start loading state with retry indicator
         const buttonId = getButtonId(orderNumber);
@@ -669,6 +885,12 @@
         if ($text.length > 0) {
             const loadingText = retryAttempt >= 2 ? `${LOADING_TEXT} (${retryAttempt})` : LOADING_TEXT;
             $text.text(loadingText);
+        }
+
+        // Update status display if this is from custom order input
+        if (isCustomOrderInput) {
+            const loadingMsg = retryAttempt >= 2 ? `Lädt... (Versuch ${retryAttempt})` : 'Lädt...';
+            updateStatusItem(orderNumber, 'loading', loadingMsg);
         }
 
         try {
@@ -692,6 +914,11 @@
             $icon.html('<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>');
             if ($text.length > 0) {
                 $text.text('Erfolgreich!');
+            }
+
+            // Update status display if this is from custom order input
+            if (isCustomOrderInput) {
+                updateStatusItem(orderNumber, 'success', 'Erfolgreich heruntergeladen');
             }
 
         } catch (error) {
@@ -724,6 +951,11 @@
             if ($text.length > 0) {
                 const errorText = retryAttempt >= 2 ? `Fehler! (${retryAttempt}/${MAX_RETRY_ATTEMPTS})` : 'Fehler!';
                 $text.text(errorText);
+            }
+
+            // Update status display if this is from custom order input
+            if (isCustomOrderInput) {
+                updateStatusItem(orderNumber, 'error', error.message || 'Fehler beim Download');
             }
 
             // Error is now only shown visually with red button
@@ -813,6 +1045,205 @@
     }
 
     /**
+     * Shows confirmation modal for multiple order downloads
+     * @param {Array<string>} orderNumbers - Array of order numbers to download
+     * @param {HTMLInputElement} inputElement - The input element to focus on cancel
+     * @returns {Promise<boolean>} Resolves to true if confirmed, false if cancelled
+     */
+    function showConfirmModal(orderNumbers, inputElement) {
+        return new Promise((resolve) => {
+            // Create modal overlay
+            const modal = document.createElement('div');
+            modal.className = 'datte-confirm-modal';
+            modal.innerHTML = `
+                <div class="datte-confirm-dialog">
+                    <div class="datte-confirm-header">
+                        ${orderNumbers.length} Aufträge herunterladen?
+                    </div>
+                    <div class="datte-confirm-body">
+                        <p>Möchten Sie wirklich ${orderNumbers.length} Aufträge herunterladen?</p>
+                        <div class="datte-confirm-order-list">
+                            ${orderNumbers.map(num => `<div class="datte-confirm-order-item">${num}</div>`).join('')}
+                        </div>
+                    </div>
+                    <div class="datte-confirm-actions">
+                        <button class="datte-confirm-btn datte-confirm-btn-cancel">
+                            Abbrechen
+                        </button>
+                        <button class="datte-confirm-btn datte-confirm-btn-ok">
+                            OK - Herunterladen
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Add to body
+            document.body.appendChild(modal);
+
+            // Get buttons
+            const cancelBtn = modal.querySelector('.datte-confirm-btn-cancel');
+            const okBtn = modal.querySelector('.datte-confirm-btn-ok');
+
+            // Handle cancel
+            const handleCancel = () => {
+                modal.remove();
+                if (inputElement) {
+                    inputElement.focus();
+                }
+                resolve(false);
+            };
+
+            // Handle confirm
+            const handleConfirm = () => {
+                modal.remove();
+                resolve(true);
+            };
+
+            // Event listeners
+            cancelBtn.addEventListener('click', handleCancel);
+            okBtn.addEventListener('click', handleConfirm);
+
+            // Keyboard shortcuts
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConfirm();
+                    document.removeEventListener('keydown', handleKeyPress);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    handleCancel();
+                    document.removeEventListener('keydown', handleKeyPress);
+                }
+            };
+            document.addEventListener('keydown', handleKeyPress);
+
+            // Click outside to cancel
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    handleCancel();
+                }
+            });
+
+            // Focus OK button
+            okBtn.focus();
+        });
+    }
+
+    /**
+     * Updates the status display visibility and count
+     */
+    function updateStatusDisplay() {
+        const container = document.getElementById('datte-download-status-container');
+        const countElement = document.getElementById('datte-download-status-count');
+
+        if (!container || !countElement) return;
+
+        const count = downloadStatusItems.size;
+
+        if (count > 0) {
+            container.style.display = 'block';
+            countElement.textContent = count;
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    /**
+     * Creates a status item for an order number
+     * @param {string} orderNumber - The order number
+     * @param {string} status - Status: pending, loading, success, error
+     * @param {string} message - Status message
+     */
+    function createStatusItem(orderNumber, status = 'pending', message = 'In Warteschlange') {
+        const list = document.getElementById('datte-download-status-list');
+        if (!list) return;
+
+        // Check if already exists
+        if (downloadStatusItems.has(orderNumber)) {
+            updateStatusItem(orderNumber, status, message);
+            return;
+        }
+
+        // Create new status item
+        const item = document.createElement('div');
+        item.className = `datte-download-status-item status-${status}`;
+        item.id = `datte-status-${orderNumber}`;
+        item.innerHTML = `
+            <span class="datte-download-status-number">${orderNumber}</span>
+            <span class="datte-download-status-icon">${getStatusIcon(status)}</span>
+            <span class="datte-download-status-text">${message}</span>
+        `;
+
+        list.appendChild(item);
+        downloadStatusItems.set(orderNumber, item);
+        updateStatusDisplay();
+    }
+
+    /**
+     * Updates an existing status item
+     * @param {string} orderNumber - The order number
+     * @param {string} status - Status: pending, loading, success, error
+     * @param {string} message - Status message
+     */
+    function updateStatusItem(orderNumber, status, message) {
+        const item = downloadStatusItems.get(orderNumber);
+        if (!item) return;
+
+        // Update class
+        item.className = `datte-download-status-item status-${status}`;
+
+        // Update icon and text
+        const iconElement = item.querySelector('.datte-download-status-icon');
+        const textElement = item.querySelector('.datte-download-status-text');
+
+        if (iconElement) iconElement.innerHTML = getStatusIcon(status);
+        if (textElement) textElement.textContent = message;
+
+        // Auto-remove successful downloads after 5 seconds
+        if (status === 'success') {
+            setTimeout(() => {
+                removeStatusItem(orderNumber);
+            }, 5000);
+        }
+    }
+
+    /**
+     * Removes a status item
+     * @param {string} orderNumber - The order number
+     */
+    function removeStatusItem(orderNumber) {
+        const item = downloadStatusItems.get(orderNumber);
+        if (!item) return;
+
+        item.style.opacity = '0';
+        setTimeout(() => {
+            item.remove();
+            downloadStatusItems.delete(orderNumber);
+            updateStatusDisplay();
+        }, 300);
+    }
+
+    /**
+     * Gets the appropriate icon for a status
+     * @param {string} status - The status
+     * @returns {string} SVG HTML string
+     */
+    function getStatusIcon(status) {
+        switch (status) {
+            case 'pending':
+                return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="color: #ffc107;"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 4v4l3 2" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>';
+            case 'loading':
+                return SPINNER_SVG.replace('width="1em" height="1em"', 'width="16" height="16"');
+            case 'success':
+                return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24"><path stroke="#28a745" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>';
+            case 'error':
+                return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24"><path stroke="#dc3545" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 6l12 12M6 18L18 6"/></svg>';
+            default:
+                return '';
+        }
+    }
+
+    /**
      * Creates the custom order input UI HTML and event handlers
      */
     function createCustomOrderInputUI(orderListPage) {
@@ -826,12 +1257,12 @@
             <div class="datte-custom-order-group">
                 <div class="datte-custom-order-wrapper">
                     <label for="datte-custom-order-number" class="datte-custom-order-label">
-                        Individuelle Bestellnummer
+                        Auftragsnummer für JTL herunterladen
                     </label>
                     <input type="text"
                            id="datte-custom-order-number"
                            class="datte-custom-order-input"
-                           placeholder="Bestellnummer eingeben (nur Zahlen)"
+                           placeholder="Auftragsnummer(n) - mehrere mit Komma, Leerzeichen oder ? trennen"
                            autocomplete="off">
                     <div class="datte-custom-order-error" id="datte-custom-order-error">
                         Fehlerhafte Eingabe: Nur Zahlen sind erlaubt
@@ -846,6 +1277,13 @@
                     <span class="datte-custom-order-text">Herunterladen</span>
                 </button>
             </div>
+            <div class="datte-download-status-container" id="datte-download-status-container" style="display: none;">
+                <div class="datte-download-status-header">
+                    <span class="datte-download-status-title">Aktive Downloads:</span>
+                    <span class="datte-download-status-count" id="datte-download-status-count">0</span>
+                </div>
+                <div class="datte-download-status-list" id="datte-download-status-list"></div>
+            </div>
         `;
 
         // Insert as first child of order list page
@@ -859,72 +1297,107 @@
 
         /**
          * Validates the input and shows/hides error message
-         * @returns {boolean} True if valid
+         * @returns {Object|null} Parsed result with valid and invalid arrays, or null if no input
          */
         function validateInput() {
             const value = input.value.trim();
-            const isValid = value.length > 0 && /^\d+$/.test(value) && value.length >= 6;
 
-            if (!isValid && value.length > 0) {
-                input.classList.add('error');
-                errorMsg.classList.add('show');
-                return false;
-            } else {
+            if (value.length === 0) {
                 input.classList.remove('error');
                 errorMsg.classList.remove('show');
-                return isValid;
+                return null;
             }
+
+            // Parse the input
+            const parsed = parseOrderNumbers(value);
+
+            // Show error if there are invalid entries
+            if (parsed.invalid.length > 0) {
+                input.classList.add('error');
+                errorMsg.textContent = `Fehlerhafte Eingabe: ${parsed.invalid.join(', ')} - nur Zahlen erlaubt`;
+                errorMsg.classList.add('show');
+                return null;
+            }
+
+            // Check if exceeds limit
+            if (parsed.valid.length > MAX_MULTI_ORDER_LIMIT) {
+                input.classList.add('error');
+                errorMsg.textContent = `Maximum ${MAX_MULTI_ORDER_LIMIT} Aufträge gleichzeitig erlaubt (${parsed.valid.length} eingegeben)`;
+                errorMsg.classList.add('show');
+                return null;
+            }
+
+            // Valid input
+            input.classList.remove('error');
+            errorMsg.classList.remove('show');
+            return parsed;
         }
 
         /**
-         * Triggers the download for the custom order number
+         * Triggers the download for the custom order number(s)
          */
         async function handleCustomOrderDownload() {
-            if (!validateInput()) {
+            const parsed = validateInput();
+            if (!parsed || parsed.valid.length === 0) {
                 return;
             }
 
-            const orderNumber = input.value.trim();
-            const siteName = extractSiteName();
-            const filename = sanitizeFilename(orderNumber);
+            const orderNumbers = parsed.valid;
 
-            // Create jQuery wrapper for button
-            const $btn = $(downloadBtn);
-            const iconSelector = '.datte-custom-order-icon';
-            const textSelector = '.datte-custom-order-text';
-
-            // Disable input during download
-            input.disabled = true;
-
-            // Create queue item and start download
-            const queueItem = {
-                orderNumber,
-                siteName,
-                filename,
-                $btn,
-                iconSelector,
-                textSelector,
-                originalIcon: $btn.find(iconSelector).html(),
-                originalText: $btn.find(textSelector).text(),
-                retryAttempt: 1
-            };
-
-            // Reset button state if it was in error or success
-            $btn.removeClass('error success queued').removeAttr('data-error-state data-success-state data-queued-state');
-
-            // Check if max concurrent downloads reached
-            if (isMaxConcurrentDownloadsReached()) {
-                enqueueDownload(queueItem);
-            } else {
-                await startDownload(queueItem);
+            // If multiple orders, show confirmation modal
+            if (orderNumbers.length > 1) {
+                const confirmed = await showConfirmModal(orderNumbers, input);
+                if (!confirmed) {
+                    return; // User cancelled
+                }
             }
 
-            // Re-enable input and clear it after successful queue/start
-            setTimeout(() => {
-                input.disabled = false;
-                input.value = '';
-                input.focus();
-            }, 500);
+            // Clear input
+            input.value = '';
+            input.classList.remove('error');
+            errorMsg.classList.remove('show');
+
+            // Process each order
+            const siteName = extractSiteName();
+
+            orderNumbers.forEach(orderNumber => {
+                const filename = sanitizeFilename(orderNumber);
+
+                // Create status item
+                createStatusItem(orderNumber, 'pending', 'In Warteschlange');
+
+                // Create a dummy button for status updates (not visible)
+                const dummyBtn = document.createElement('button');
+                dummyBtn.style.display = 'none';
+                dummyBtn.innerHTML = `
+                    <span class="datte-custom-order-icon"></span>
+                    <span class="datte-custom-order-text"></span>
+                `;
+
+                // Create queue item
+                const queueItem = {
+                    orderNumber,
+                    siteName,
+                    filename,
+                    $btn: $(dummyBtn),
+                    iconSelector: '.datte-custom-order-icon',
+                    textSelector: '.datte-custom-order-text',
+                    originalIcon: '',
+                    originalText: '',
+                    retryAttempt: 1,
+                    isCustomOrderInput: true // Flag to identify custom order input downloads
+                };
+
+                // Queue or start download
+                if (isMaxConcurrentDownloadsReached()) {
+                    enqueueDownload(queueItem);
+                } else {
+                    startDownload(queueItem);
+                }
+            });
+
+            // Focus back to input
+            input.focus();
         }
 
         // Add input validation on input event
