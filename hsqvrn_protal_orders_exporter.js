@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.4.5
+// @version      2.4.6
 // @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status (Refactored)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -1342,7 +1342,7 @@
             <div class="datte-custom-order-group">
                 <div class="datte-custom-order-wrapper">
                     <label for="datte-custom-order-number" class="datte-custom-order-label">
-                        <span>CSV-Export für mehrere Auftragsnummern</span>
+                        <span>JTL-CSV-Export für mehrere Auftragsnummern</span>
                         <span class="datte-muted">(Enter drücken)</span>
                     </label>
                     <input type="text"
