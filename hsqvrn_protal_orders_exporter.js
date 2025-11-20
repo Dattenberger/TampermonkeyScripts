@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.2.2
+// @version      2.2.3
 // @description  Exportiert Bestelldaten via GraphQL mit individueller Bestellnummern-Eingabe
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -88,7 +88,7 @@
         }
 
         /* Custom order input section */
-        #orders {
+        .datte-custom-order-container {
             background: white;
             padding: 20px;
             margin: 20px 0;
@@ -97,20 +97,20 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        #orders .input-group {
+        .datte-custom-order-group {
             display: flex;
             gap: 12px;
             align-items: flex-start;
             flex-wrap: wrap;
         }
 
-        #orders .input-wrapper {
+        .datte-custom-order-wrapper {
             flex: 1;
             min-width: 200px;
             max-width: 400px;
         }
 
-        #orders label {
+        .datte-custom-order-label {
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
@@ -119,7 +119,7 @@
             font-family: "Husqvarna Gothic", Arial, sans-serif;
         }
 
-        #orders input[type="text"] {
+        .datte-custom-order-input {
             width: 100%;
             padding: 12px 16px;
             border: 1px solid #3d3d3c;
@@ -129,16 +129,16 @@
             transition: border-color 0.2s ease;
         }
 
-        #orders input[type="text"]:focus {
+        .datte-custom-order-input:focus {
             outline: none;
             border-color: #000;
         }
 
-        #orders input[type="text"].error {
+        .datte-custom-order-input.error {
             border-color: #dc3545;
         }
 
-        #orders .error-message {
+        .datte-custom-order-error {
             color: #dc3545;
             font-size: 12px;
             margin-top: 6px;
@@ -146,11 +146,11 @@
             font-family: "Husqvarna Gothic", Arial, sans-serif;
         }
 
-        #orders .error-message.show {
+        .datte-custom-order-error.show {
             display: block;
         }
 
-        #orders .download-btn {
+        .datte-custom-order-btn {
             margin-top: 28px;
             display: inline-flex;
             align-items: center;
@@ -168,28 +168,28 @@
             transition: background-color 0.2s ease, border-color 0.2s ease;
         }
 
-        #orders .download-btn:hover:not(.loading):not(.disabled) {
+        .datte-custom-order-btn:hover:not(.loading):not(.disabled) {
             background: #f5f5f5;
         }
 
-        #orders .download-btn.loading {
+        .datte-custom-order-btn.loading {
             background: #6f6f6f;
             color: white;
             pointer-events: none;
         }
 
-        #orders .download-btn.disabled {
+        .datte-custom-order-btn.disabled {
             opacity: 0.5;
             pointer-events: none;
         }
 
-        #orders .download-btn.success {
+        .datte-custom-order-btn.success {
             background-color: #28a745;
             border-color: #28a745;
             color: white;
         }
 
-        #orders .download-btn.error {
+        .datte-custom-order-btn.error {
             background-color: #dc3545;
             border-color: #dc3545;
             color: white;
@@ -821,25 +821,29 @@
         // Create the custom input container
         const ordersDiv = document.createElement('div');
         ordersDiv.id = 'orders';
+        ordersDiv.className = 'datte-custom-order-container';
         ordersDiv.innerHTML = `
-            <div class="input-group">
-                <div class="input-wrapper">
-                    <label for="custom-order-number">Individuelle Bestellnummer</label>
+            <div class="datte-custom-order-group">
+                <div class="datte-custom-order-wrapper">
+                    <label for="datte-custom-order-number" class="datte-custom-order-label">
+                        Individuelle Bestellnummer
+                    </label>
                     <input type="text"
-                           id="custom-order-number"
+                           id="datte-custom-order-number"
+                           class="datte-custom-order-input"
                            placeholder="Bestellnummer eingeben (nur Zahlen)"
                            autocomplete="off">
-                    <div class="error-message" id="order-number-error">
+                    <div class="datte-custom-order-error" id="datte-custom-order-error">
                         Fehlerhafte Eingabe: Nur Zahlen sind erlaubt
                     </div>
                 </div>
-                <button class="download-btn" id="custom-order-download">
-                    <span class="download-icon" aria-hidden="true">
+                <button class="datte-custom-order-btn" id="datte-custom-order-download">
+                    <span class="datte-custom-order-icon" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28">
                             <path fill="currentColor" d="M27.003 20a1 1 0 0 1 .992.884l.007.116L28 26.003a2 2 0 0 1-1.85 1.994l-.15.005H2a2 2 0 0 1-1.995-1.85L0 26.002V21a1 1 0 0 1 1.993-.117L2 21v5.002h24L26.002 21a1 1 0 0 1 1-1m-13-20a1 1 0 0 1 .992.883l.007.117v16.585l6.293-6.292a1 1 0 0 1 1.492 1.327l-.078.087-8 8a1 1 0 0 1-.085.076l-.009.007-.028.021a1 1 0 0 1-.075.05l-.026.014a1 1 0 0 1-.08.04l-.038.016-.051.018-.018.006a1 1 0 0 1-.124.03l-.027.004a1 1 0 0 1-.146.011h-.033l-.052-.004.085.004a1 1 0 0 1-.18-.016h-.002l-.023-.005-.059-.014-.032-.01h-.002l-.014-.005a1 1 0 0 1-.095-.036l-.003-.002-.018-.008-.045-.023-.036-.02-.004-.003q0 .002-.005-.003l-.01-.006-.065-.044-.024-.018a1 1 0 0 1-.09-.08l-8-8a1 1 0 0 1 1.327-1.492l.087.078 6.293 6.292V1a1 1 0 0 1 1-1"></path>
                         </svg>
                     </span>
-                    <span class="download-text">Herunterladen</span>
+                    <span class="datte-custom-order-text">Herunterladen</span>
                 </button>
             </div>
         `;
@@ -849,9 +853,9 @@
         console.log('[CustomOrderInput] Orders div inserted successfully');
 
         // Get references to elements
-        const input = document.getElementById('custom-order-number');
-        const downloadBtn = document.getElementById('custom-order-download');
-        const errorMsg = document.getElementById('order-number-error');
+        const input = document.getElementById('datte-custom-order-number');
+        const downloadBtn = document.getElementById('datte-custom-order-download');
+        const errorMsg = document.getElementById('datte-custom-order-error');
 
         /**
          * Validates the input and shows/hides error message
@@ -886,8 +890,8 @@
 
             // Create jQuery wrapper for button
             const $btn = $(downloadBtn);
-            const iconSelector = '.download-icon';
-            const textSelector = '.download-text';
+            const iconSelector = '.datte-custom-order-icon';
+            const textSelector = '.datte-custom-order-text';
 
             // Disable input during download
             input.disabled = true;
@@ -957,7 +961,7 @@
 
         // Try to attach immediately if element already exists
         const existingOrderListPage = document.querySelector('[data-testid="order-list-page"]');
-        if (existingOrderListPage && !document.getElementById('orders')) {
+        if (existingOrderListPage && !document.querySelector('.datte-custom-order-container')) {
             console.log('[CustomOrderInput] Order list page already exists, attaching immediately');
             createCustomOrderInputUI(existingOrderListPage);
             return;
@@ -968,7 +972,7 @@
             const orderListPage = document.querySelector('[data-testid="order-list-page"]');
 
             // Only proceed if order list page exists and we haven't added the input yet
-            if (orderListPage && !document.getElementById('orders')) {
+            if (orderListPage && !document.querySelector('.datte-custom-order-container')) {
                 console.log('[CustomOrderInput] Order list page detected, attaching custom input');
                 createCustomOrderInputUI(orderListPage);
             }
