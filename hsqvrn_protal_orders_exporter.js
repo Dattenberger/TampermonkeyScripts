@@ -720,25 +720,25 @@
      */
     async function fetchOrderViaGraphQL(orderNumber, siteName, retryAttempt = 1) {
         // Input validation
-        if (!validateOrderNumber(orderNumber)) {
+        if (!Utils.validateOrderNumber(orderNumber)) {
             throw new Error('Ungültige Bestellnummer');
         }
 
         // Check cache first (only on first attempt)
         if (retryAttempt === 1) {
             const cacheKey = `${orderNumber}-${siteName}`;
-            if (orderCache.has(cacheKey)) {
-                return orderCache.get(cacheKey);
+            if (State.orderCache.has(cacheKey)) {
+                return State.orderCache.get(cacheKey);
             }
         }
 
         // Check if download is already running for this order
-        if (activeDownloads.has(orderNumber)) {
+        if (State.activeDownloads.has(orderNumber)) {
             throw new Error('Download bereits aktiv für diese Bestellung');
         }
 
         // Track this download
-        activeDownloads.add(orderNumber);
+        State.activeDownloads.add(orderNumber);
 
         try {
             const body = {
@@ -767,14 +767,14 @@
 
             // Cache the result on successful fetch
             const cacheKey = `${orderNumber}-${siteName}`;
-            orderCache.set(cacheKey, order);
+            State.orderCache.set(cacheKey, order);
 
             // Clear retry counter on success
-            retryCounters.delete(orderNumber);
+            State.retryCounters.delete(orderNumber);
 
             return order;
         } finally {
-            activeDownloads.delete(orderNumber);
+            State.activeDownloads.delete(orderNumber);
             // Process next item in queue
             setTimeout(() => processDownloadQueue(), 100);
         }
@@ -790,7 +790,7 @@
      */
     function prepareCsvDataToExport(rows, innerOrderNumber, outerOrderNumber) {
         return rows.map((data) => {
-            let vpe = parseInt(nullSafeMatch(data['Kommentar'], /^D-BE\S*\s*VPE=(\d+)/, 1), 10);
+            let vpe = parseInt(Utils.nullSafeMatch(data['Kommentar'], /^D-BE\S*\s*VPE=(\d+)/, 1), 10);
             if (!Number.isFinite(vpe) || vpe < 1) vpe = 1;
 
             const quantityRaw = (data['Anz/Konf.'] || '').split('/')[0] || '';
@@ -799,18 +799,18 @@
             const totalQuantity = Math.max(1, baseQuantity * vpe);
 
             const totalPrice = data['Gesamt'];
-            const purchasePriceNet = (Number.isFinite(totalPrice) && totalQuantity > 0) ? (totalPrice * DISCOUNT_FACTOR / totalQuantity) : NaN;
+            const purchasePriceNet = (Number.isFinite(totalPrice) && totalQuantity > 0) ? (totalPrice * Config.business.DISCOUNT_FACTOR / totalQuantity) : NaN;
 
             return {
                 'HAN': (data['Artikelnumer'] || '').replace(/^0+/g, '').replace(/\D+/g, ''),
-                'Interne Bestellnummer': nullSafeString(innerOrderNumber).slice(0, 14),
-                'Artikelnummer': nullSafeMatch(data['Kommentar'], /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/, 1),
+                'Interne Bestellnummer': Utils.nullSafeString(innerOrderNumber).slice(0, 14),
+                'Artikelnummer': Utils.nullSafeMatch(data['Kommentar'], /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/, 1),
                 'Lieferantenbezeichnung': data['Beschreibung'] || '',
                 'menge': totalQuantity,
                 'EK netto': Number.isFinite(purchasePriceNet) ? purchasePriceNet.toFixed(4).replace('.', ',') : '',
-                'Lieferdatum': formatGermanDate(data['Versendet']),
+                'Lieferdatum': Utils.formatGermanDate(data['Versendet']),
                 'Freiposition': 'N',
-                'Fremdbelegnummer': nullSafeString(outerOrderNumber)
+                'Fremdbelegnummer': Utils.nullSafeString(outerOrderNumber)
             };
         });
     }
@@ -823,7 +823,7 @@
         const anzKonf = `${(delivered ?? requested) ?? ''} / ${requested ?? ''}`;
 
         const promised = firstDel?.promisedDispatchDate;
-        const versendet = formatDateFromISO(promised) || formatDateFromISO(line.requestedDispatchDate);
+        const versendet = Utils.formatDateFromISO(promised) || Utils.formatDateFromISO(line.requestedDispatchDate);
 
         const name = (line.article && line.article.name) || line.ecomArticleDescription;
         const beschreibung = (line.article && line.article.articleDescription) || ''
@@ -833,7 +833,7 @@
             'Artikelnumer': line.unformattedArticleNumber || (line.article && line.article.id) || '',
             'Kommentar': line.customerOrderLineReference || '',
             'Beschreibung': nameBeschreibung,
-            'Angefragt': formatDateFromISO(line.requestedDispatchDate),
+            'Angefragt': Utils.formatDateFromISO(line.requestedDispatchDate),
             'Versendet': versendet,
             'Anz/Konf.': anzKonf,
             'Gesamt': line.totalNetPrice,
@@ -855,7 +855,7 @@
      * @returns {boolean} True if max concurrent downloads reached
      */
     function isMaxConcurrentDownloadsReached() {
-        return activeDownloads.size >= MAX_CONCURRENT_DOWNLOADS;
+        return State.activeDownloads.size >= Config.download.MAX_CONCURRENT_DOWNLOADS;
     }
 
 
@@ -863,11 +863,11 @@
      * Processes the next item in the download queue if slots are available
      */
     function processDownloadQueue() {
-        if (downloadQueue.length === 0 || isMaxConcurrentDownloadsReached()) {
+        if (State.downloadQueue.length === 0 || isMaxConcurrentDownloadsReached()) {
             return;
         }
 
-        const queueItem = downloadQueue.shift();
+        const queueItem = State.downloadQueue.shift();
         startDownload(queueItem);
     }
 
@@ -877,12 +877,12 @@
      */
     function enqueueDownload(queueItem) {
         // Check if already in queue or downloading
-        if (activeDownloads.has(queueItem.orderNumber) ||
-            downloadQueue.some(item => item.orderNumber === queueItem.orderNumber)) {
+        if (State.activeDownloads.has(queueItem.orderNumber) ||
+            State.downloadQueue.some(item => item.orderNumber === queueItem.orderNumber)) {
             return;
         }
 
-        downloadQueue.push(queueItem);
+        State.downloadQueue.push(queueItem);
         updateQueuedButtonState(queueItem);
         processDownloadQueue();
     }
@@ -919,9 +919,9 @@
         const $icon = $btn.find(iconSelector);
         const $text = $btn.find(textSelector);
 
-        $icon.html(SPINNER_SVG);
+        $icon.html(Config.ui.SPINNER_SVG);
         if ($text.length > 0) {
-            const loadingText = retryAttempt >= 2 ? `${LOADING_TEXT} (${retryAttempt})` : LOADING_TEXT;
+            const loadingText = retryAttempt >= 2 ? `${Config.ui.LOADING_TEXT} (${retryAttempt})` : Config.ui.LOADING_TEXT;
             $text.text(loadingText);
         }
 
@@ -945,7 +945,7 @@
             link.download = filename;
             link.click();
 
-            setTimeout(() => URL.revokeObjectURL(url), URL_CLEANUP_DELAY);
+            setTimeout(() => URL.revokeObjectURL(url), Config.timing.URL_CLEANUP_DELAY);
 
             // Show success state permanently
             $btn.removeClass('loading').addClass('success').attr('data-success-state', 'true');
@@ -961,14 +961,14 @@
 
         } catch (error) {
             // Check if we should retry
-            if (retryAttempt < MAX_RETRY_ATTEMPTS && shouldRetryError(error)) {
+            if (retryAttempt < Config.download.MAX_RETRY_ATTEMPTS && shouldRetryError(error)) {
                 const nextAttempt = retryAttempt + 1;
-                const delay = RETRY_DELAY_BASE * Math.pow(2, retryAttempt - 1); // Exponential backoff
+                const delay = Config.timing.RETRY_DELAY_BASE * Math.pow(2, retryAttempt - 1); // Exponential backoff
 
                 console.log(`Retry attempt ${nextAttempt} for order ${orderNumber} in ${delay}ms`);
 
                 // Update retry counter
-                retryCounters.set(orderNumber, nextAttempt);
+                State.retryCounters.set(orderNumber, nextAttempt);
 
                 // Schedule retry
                 setTimeout(() => {
@@ -981,13 +981,13 @@
 
             // Max retries reached or non-retryable error
             const userMessage = handleExportError(error, orderNumber);
-            retryCounters.delete(orderNumber);
+            State.retryCounters.delete(orderNumber);
 
             // Show error state permanently with red highlighting
             $btn.removeClass('loading').addClass('error').attr('data-error-state', 'true');
             $icon.html('<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 6l12 12M6 18L18 6"/></svg>');
             if ($text.length > 0) {
-                const errorText = retryAttempt >= 2 ? `Fehler! (${retryAttempt}/${MAX_RETRY_ATTEMPTS})` : 'Fehler!';
+                const errorText = retryAttempt >= 2 ? `Fehler! (${retryAttempt}/${Config.download.MAX_RETRY_ATTEMPTS})` : 'Fehler!';
                 $text.text(errorText);
             }
 
@@ -999,7 +999,7 @@
             // Error is now only shown visually with red button
             console.error(userMessage);
         } finally {
-            activeDownloads.delete(orderNumber);
+            State.activeDownloads.delete(orderNumber);
             // Process next item in queue
             setTimeout(() => processDownloadQueue(), 100);
         }
@@ -1030,7 +1030,7 @@
             e.preventDefault();
 
             // Check if already downloading this order
-            if (activeDownloads.has(orderNumber)) {
+            if (State.activeDownloads.has(orderNumber)) {
                 return; // Silently ignore if already in progress
             }
 
@@ -1038,14 +1038,14 @@
             if ($btn.hasClass('error') || $btn.attr('data-error-state') === 'true') {
                 $btn.removeClass('error').removeAttr('data-error-state');
                 // Clear retry counter for new manual attempt
-                retryCounters.delete(orderNumber);
+                State.retryCounters.delete(orderNumber);
             }
             if ($btn.hasClass('queued') || $btn.attr('data-queued-state') === 'true') {
                 $btn.removeClass('queued').removeAttr('data-queued-state');
                 // Remove from queue if already queued
-                const queueIndex = downloadQueue.findIndex(item => item.orderNumber === orderNumber);
+                const queueIndex = State.downloadQueue.findIndex(item => item.orderNumber === orderNumber);
                 if (queueIndex !== -1) {
-                    downloadQueue.splice(queueIndex, 1);
+                    State.downloadQueue.splice(queueIndex, 1);
                 }
             }
 
@@ -1176,7 +1176,7 @@
 
         if (!container || !countElement) return;
 
-        const count = downloadStatusItems.size;
+        const count = State.downloadStatusItems.size;
 
         if (count > 0) {
             container.style.display = 'block';
@@ -1197,7 +1197,7 @@
         if (!list) return;
 
         // Check if already exists
-        if (downloadStatusItems.has(orderNumber)) {
+        if (State.downloadStatusItems.has(orderNumber)) {
             updateStatusItem(orderNumber, status, message);
             return;
         }
@@ -1213,7 +1213,7 @@
         `;
 
         list.appendChild(item);
-        downloadStatusItems.set(orderNumber, item);
+        State.downloadStatusItems.set(orderNumber, item);
         updateStatusDisplay();
     }
 
@@ -1224,7 +1224,7 @@
      * @param {string} message - Status message
      */
     function updateStatusItem(orderNumber, status, message) {
-        const item = downloadStatusItems.get(orderNumber);
+        const item = State.downloadStatusItems.get(orderNumber);
         if (!item) return;
 
         // Update class
@@ -1241,7 +1241,7 @@
         if (status === 'success') {
             setTimeout(() => {
                 removeStatusItem(orderNumber);
-            }, 5000);
+            }, Config.timing.STATUS_SUCCESS_REMOVE_DELAY);
         }
     }
 
@@ -1250,13 +1250,13 @@
      * @param {string} orderNumber - The order number
      */
     function removeStatusItem(orderNumber) {
-        const item = downloadStatusItems.get(orderNumber);
+        const item = State.downloadStatusItems.get(orderNumber);
         if (!item) return;
 
         item.style.opacity = '0';
         setTimeout(() => {
             item.remove();
-            downloadStatusItems.delete(orderNumber);
+            State.downloadStatusItems.delete(orderNumber);
             updateStatusDisplay();
         }, 300);
     }
@@ -1271,7 +1271,7 @@
             case 'pending':
                 return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="color: #ffc107;"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 4v4l3 2" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>';
             case 'loading':
-                return SPINNER_SVG.replace('width="1em" height="1em"', 'width="16" height="16"');
+                return Config.ui.SPINNER_SVG.replace('width="1em" height="1em"', 'width="16" height="16"');
             case 'success':
                 return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24"><path stroke="#28a745" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>';
             case 'error':
@@ -1347,7 +1347,7 @@
             }
 
             // Parse the input
-            const parsed = parseOrderNumbers(value);
+            const parsed = Utils.parseOrderNumbers(value);
 
             // Show error if there are invalid entries
             if (parsed.invalid.length > 0) {
@@ -1358,9 +1358,9 @@
             }
 
             // Check if exceeds limit
-            if (parsed.valid.length > MAX_MULTI_ORDER_LIMIT) {
+            if (parsed.valid.length > Config.business.MAX_MULTI_ORDER_LIMIT) {
                 input.classList.add('error');
-                errorMsg.textContent = `Maximum ${MAX_MULTI_ORDER_LIMIT} Aufträge gleichzeitig erlaubt (${parsed.valid.length} eingegeben)`;
+                errorMsg.textContent = `Maximum ${Config.business.MAX_MULTI_ORDER_LIMIT} Aufträge gleichzeitig erlaubt (${parsed.valid.length} eingegeben)`;
                 errorMsg.classList.add('show');
                 return null;
             }
@@ -1399,7 +1399,7 @@
             const siteName = extractSiteName();
 
             orderNumbers.forEach(orderNumber => {
-                const filename = sanitizeFilename(orderNumber);
+                const filename = Utils.sanitizeFilename(orderNumber);
 
                 // Create status item
                 createStatusItem(orderNumber, 'pending', 'In Warteschlange');
@@ -1506,7 +1506,7 @@
         if ($bar.find('.export-btn').length) return;
 
         const orderNumber = extractOrderNumber();
-        const filename = sanitizeFilename(orderNumber);
+        const filename = Utils.sanitizeFilename(orderNumber);
 
         const $btn = $(`
       <a class="export-btn" data-variant="secondary" data-size="compact" download="${filename}" title="Export CSV für JTL (API)">
@@ -1535,7 +1535,7 @@
 
         $headerDiv.css({display: 'flex', justifyContent: 'space-between', alignItems: 'center'});
         const orderNumber = extractOrderNumber();
-        const filename = sanitizeFilename(orderNumber);
+        const filename = Utils.sanitizeFilename(orderNumber);
 
         const $btn = $(`
       <a class="export-btn" data-variant="secondary" data-size="compact" download="${filename}">
@@ -1579,9 +1579,9 @@
             if (!detailLink) return;
 
             const orderNumber = extractOrderIdFromHref(detailLink.href);
-            if (!orderNumber || !validateOrderNumber(orderNumber)) return;
+            if (!orderNumber || !Utils.validateOrderNumber(orderNumber)) return;
 
-            const filename = sanitizeFilename(orderNumber);
+            const filename = Utils.sanitizeFilename(orderNumber);
 
             // Find the cell with the arrow (last cell)
             const arrowCell = row.querySelector('div[role="cell"]:last-child');
@@ -1616,13 +1616,13 @@
         // Set up custom order input observer (runs independently)
         setupCustomOrderInputObserver();
 
-        const handleDOMChanges = debounce(() => {
+        const handleDOMChanges = Utils.debounce(() => {
             if (document.querySelector('[data-testid="order-detail-page"]')) attachExportButtonToNewLayout();
             if (document.querySelector('div#ui-modal-target article header')) attachExportButtonToOldModal();
             if (isOrderListPage()) {
                 attachExportButtonsToOrderList();
             }
-        }, 120);
+        }, Config.timing.DEBOUNCE_DELAY);
         handleDOMChanges();
 
         const mutationObserver = new MutationObserver(mutations => {
