@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.4.1
+// @version      2.4.2
 // @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status (Refactored)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -89,14 +89,13 @@
             .datte-custom-order-group {
                 display: flex;
                 gap: 12px;
-                align-items: flex-start;
-                flex-wrap: wrap;
+                align-items: flex-end;
+                width: 100%;
             }
 
             .datte-custom-order-wrapper {
                 flex: 1;
-                min-width: 200px;
-                max-width: 400px;
+                min-width: 300px;
             }
 
             .datte-custom-order-label {
@@ -140,13 +139,12 @@
             }
 
             .datte-custom-order-btn {
-                margin-top: 28px;
                 display: inline-flex;
                 align-items: center;
                 gap: 0.5rem;
                 cursor: pointer;
                 text-decoration: none;
-                padding: 12px 24px;
+                padding: 12px 32px;
                 border-radius: 8px;
                 border: 1px solid #3d3d3c;
                 background: white;
@@ -155,6 +153,7 @@
                 font-size: 14px;
                 text-transform: uppercase;
                 transition: background-color 0.2s ease, border-color 0.2s ease;
+                white-space: nowrap;
             }
 
             .datte-custom-order-btn:hover:not(.loading):not(.disabled) {
@@ -1312,7 +1311,7 @@
             <div class="datte-custom-order-group">
                 <div class="datte-custom-order-wrapper">
                     <label for="datte-custom-order-number" class="datte-custom-order-label">
-                        Auftragsnummer für JTL herunterladen
+                        CSV-Export für mehrere Auftragsnummern
                     </label>
                     <input type="text"
                            id="datte-custom-order-number"
@@ -1335,11 +1334,11 @@
             <div class="datte-download-status-container" id="datte-download-status-container" style="display: none;">
                 <div class="datte-download-status-header">
                     <span class="datte-download-status-title">Downloads</span>
-                    <button class="datte-download-status-clear-btn" id="datte-download-status-clear" title="Alle löschen">
+                    <button class="datte-download-status-clear-btn" id="datte-download-status-clear" title="Alle leeren">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                             <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
                         </svg>
-                        Löschen
+                        Leeren
                     </button>
                 </div>
                 <div class="datte-download-status-list" id="datte-download-status-list"></div>
