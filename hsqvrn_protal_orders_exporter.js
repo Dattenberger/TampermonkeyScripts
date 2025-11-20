@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.2.1
+// @version      2.2.2
 // @description  Exportiert Bestelldaten via GraphQL mit individueller Bestellnummern-Eingabe
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -813,24 +813,10 @@
     }
 
     /**
-     * Creates and attaches custom order number input UI to order list page
+     * Creates the custom order input UI HTML and event handlers
      */
-    function attachCustomOrderInput() {
-        console.log('[CustomOrderInput] Attempting to attach custom order input...');
-
-        const orderListPage = document.querySelector('[data-testid="order-list-page"]');
-        if (!orderListPage) {
-            console.log('[CustomOrderInput] Order list page not found');
-            return;
-        }
-
-        console.log('[CustomOrderInput] Order list page found:', orderListPage);
-
-        // Check if already exists
-        if (document.getElementById('orders')) {
-            console.log('[CustomOrderInput] Orders div already exists');
-            return;
-        }
+    function createCustomOrderInputUI(orderListPage) {
+        console.log('[CustomOrderInput] Creating custom order input UI');
 
         // Create the custom input container
         const ordersDiv = document.createElement('div');
@@ -963,6 +949,40 @@
         });
     }
 
+    /**
+     * Sets up MutationObserver to watch for order list page and inject custom input
+     */
+    function setupCustomOrderInputObserver() {
+        console.log('[CustomOrderInput] Setting up MutationObserver for order list page');
+
+        // Try to attach immediately if element already exists
+        const existingOrderListPage = document.querySelector('[data-testid="order-list-page"]');
+        if (existingOrderListPage && !document.getElementById('orders')) {
+            console.log('[CustomOrderInput] Order list page already exists, attaching immediately');
+            createCustomOrderInputUI(existingOrderListPage);
+            return;
+        }
+
+        // Set up observer for when element appears
+        const observer = new MutationObserver((mutations) => {
+            const orderListPage = document.querySelector('[data-testid="order-list-page"]');
+
+            // Only proceed if order list page exists and we haven't added the input yet
+            if (orderListPage && !document.getElementById('orders')) {
+                console.log('[CustomOrderInput] Order list page detected, attaching custom input');
+                createCustomOrderInputUI(orderListPage);
+            }
+        });
+
+        // Start observing
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        console.log('[CustomOrderInput] MutationObserver started');
+    }
+
     function attachExportButtonToNewLayout() {
         const $page = $('[data-testid="order-detail-page"]').first();
         if (!$page.length) return;
@@ -1078,11 +1098,13 @@
     }
 
     function initializeScript() {
+        // Set up custom order input observer (runs independently)
+        setupCustomOrderInputObserver();
+
         const handleDOMChanges = debounce(() => {
             if (document.querySelector('[data-testid="order-detail-page"]')) attachExportButtonToNewLayout();
             if (document.querySelector('div#ui-modal-target article header')) attachExportButtonToOldModal();
             if (isOrderListPage()) {
-                attachCustomOrderInput();
                 attachExportButtonsToOrderList();
             }
         }, 120);
