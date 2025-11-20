@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.4.0
+// @version      2.4.1
 // @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status (Refactored)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -285,83 +285,101 @@
         `,
 
         statusDisplay: `
-            /* Download Status Display */
+            /* Download Status Display - Button Style */
             .datte-download-status-container {
                 margin-top: 20px;
                 padding: 15px;
                 background: #f9f9f9;
-                border-radius: 6px;
+                border-radius: 8px;
                 border: 1px solid #e0e0e0;
             }
 
             .datte-download-status-header {
                 display: flex;
-                gap: 8px;
+                justify-content: space-between;
                 align-items: center;
                 margin-bottom: 12px;
+            }
+
+            .datte-download-status-title {
                 font-family: "Husqvarna Gothic", Arial, sans-serif;
                 font-size: 14px;
                 font-weight: 600;
                 color: #3d3d3c;
             }
 
-            .datte-download-status-count {
-                background: #3d3d3c;
-                color: white;
-                padding: 2px 8px;
-                border-radius: 12px;
-                font-size: 12px;
+            .datte-download-status-clear-btn {
+                background: transparent;
+                border: none;
+                cursor: pointer;
+                padding: 4px 8px;
+                border-radius: 4px;
+                transition: background-color 0.2s ease;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                font-family: "Husqvarna Gothic", Arial, sans-serif;
+                font-size: 13px;
+                color: #666;
+            }
+
+            .datte-download-status-clear-btn:hover {
+                background: #e0e0e0;
             }
 
             .datte-download-status-list {
                 display: flex;
-                flex-direction: column;
+                flex-wrap: wrap;
                 gap: 8px;
             }
 
             .datte-download-status-item {
-                display: flex;
+                display: inline-flex;
                 align-items: center;
-                gap: 12px;
-                padding: 10px 12px;
-                background: white;
-                border-radius: 4px;
-                border: 1px solid #e0e0e0;
+                gap: 8px;
+                padding: 8px 16px;
+                border-radius: 8px;
+                border: 1px solid #3d3d3c;
                 font-family: "Husqvarna Gothic", Arial, sans-serif;
                 font-size: 13px;
-                transition: all 0.3s ease;
+                font-weight: 500;
+                transition: all 0.2s ease;
+                white-space: nowrap;
             }
 
             .datte-download-status-item.status-pending {
-                border-left: 3px solid #ffc107;
+                background: #fff3cd;
+                border-color: #ffc107;
+                color: #856404;
             }
 
             .datte-download-status-item.status-loading {
-                border-left: 3px solid #6f6f6f;
+                background: #6f6f6f;
+                border-color: #6f6f6f;
+                color: white;
             }
 
             .datte-download-status-item.status-success {
-                border-left: 3px solid #28a745;
+                background: #28a745;
+                border-color: #28a745;
+                color: white;
             }
 
             .datte-download-status-item.status-error {
-                border-left: 3px solid #dc3545;
+                background: #dc3545;
+                border-color: #dc3545;
+                color: white;
             }
 
             .datte-download-status-number {
                 font-family: monospace;
                 font-weight: 600;
-                color: #3d3d3c;
-                min-width: 80px;
             }
 
             .datte-download-status-icon {
                 flex-shrink: 0;
-            }
-
-            .datte-download-status-text {
-                flex: 1;
-                color: #666;
+                display: flex;
+                align-items: center;
             }
         `,
 
@@ -1168,29 +1186,37 @@
     }
 
     /**
-     * Updates the status display visibility and count
+     * Updates the status display visibility
      */
     function updateStatusDisplay() {
         const container = document.getElementById('datte-download-status-container');
-        const countElement = document.getElementById('datte-download-status-count');
-
-        if (!container || !countElement) return;
+        if (!container) return;
 
         const count = State.downloadStatusItems.size;
 
         if (count > 0) {
             container.style.display = 'block';
-            countElement.textContent = count;
         } else {
             container.style.display = 'none';
         }
     }
 
     /**
+     * Clears all status items
+     */
+    function clearAllStatusItems() {
+        State.downloadStatusItems.forEach((item) => {
+            item.remove();
+        });
+        State.downloadStatusItems.clear();
+        updateStatusDisplay();
+    }
+
+    /**
      * Creates a status item for an order number
      * @param {string} orderNumber - The order number
      * @param {string} status - Status: pending, loading, success, error
-     * @param {string} message - Status message
+     * @param {string} message - Status message (not displayed, kept for backwards compatibility)
      */
     function createStatusItem(orderNumber, status = 'pending', message = 'In Warteschlange') {
         const list = document.getElementById('datte-download-status-list');
@@ -1202,14 +1228,13 @@
             return;
         }
 
-        // Create new status item
+        // Create new status item (button-style label)
         const item = document.createElement('div');
         item.className = `datte-download-status-item status-${status}`;
         item.id = `datte-status-${orderNumber}`;
         item.innerHTML = `
             <span class="datte-download-status-number">${orderNumber}</span>
             <span class="datte-download-status-icon">${getStatusIcon(status)}</span>
-            <span class="datte-download-status-text">${message}</span>
         `;
 
         list.appendChild(item);
@@ -1221,7 +1246,7 @@
      * Updates an existing status item
      * @param {string} orderNumber - The order number
      * @param {string} status - Status: pending, loading, success, error
-     * @param {string} message - Status message
+     * @param {string} message - Status message (not displayed, kept for backwards compatibility)
      */
     function updateStatusItem(orderNumber, status, message) {
         const item = State.downloadStatusItems.get(orderNumber);
@@ -1230,19 +1255,11 @@
         // Update class
         item.className = `datte-download-status-item status-${status}`;
 
-        // Update icon and text
+        // Update icon
         const iconElement = item.querySelector('.datte-download-status-icon');
-        const textElement = item.querySelector('.datte-download-status-text');
-
         if (iconElement) iconElement.innerHTML = getStatusIcon(status);
-        if (textElement) textElement.textContent = message;
 
-        // Auto-remove successful downloads after 5 seconds
-        if (status === 'success') {
-            setTimeout(() => {
-                removeStatusItem(orderNumber);
-            }, Config.timing.STATUS_SUCCESS_REMOVE_DELAY);
-        }
+        // Note: Items no longer auto-remove, user must clear manually
     }
 
     /**
@@ -1269,13 +1286,13 @@
     function getStatusIcon(status) {
         switch (status) {
             case 'pending':
-                return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="color: #ffc107;"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 4v4l3 2" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>';
+                return '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 4v4l3 2" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>';
             case 'loading':
-                return Config.ui.SPINNER_SVG.replace('width="1em" height="1em"', 'width="16" height="16"');
+                return '<svg class="loading-spinner" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" stroke-dasharray="31.416" stroke-dashoffset="31.416" fill="none" opacity="0.25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>';
             case 'success':
-                return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24"><path stroke="#28a745" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>';
+                return '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>';
             case 'error':
-                return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24"><path stroke="#dc3545" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 6l12 12M6 18L18 6"/></svg>';
+                return '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 6l12 12M6 18L18 6"/></svg>';
             default:
                 return '';
         }
@@ -1317,8 +1334,13 @@
             </div>
             <div class="datte-download-status-container" id="datte-download-status-container" style="display: none;">
                 <div class="datte-download-status-header">
-                    <span class="datte-download-status-title">Aktive Downloads:</span>
-                    <span class="datte-download-status-count" id="datte-download-status-count">0</span>
+                    <span class="datte-download-status-title">Downloads</span>
+                    <button class="datte-download-status-clear-btn" id="datte-download-status-clear" title="Alle löschen">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
+                        </svg>
+                        Löschen
+                    </button>
                 </div>
                 <div class="datte-download-status-list" id="datte-download-status-list"></div>
             </div>
@@ -1332,6 +1354,14 @@
         const input = document.getElementById('datte-custom-order-number');
         const downloadBtn = document.getElementById('datte-custom-order-download');
         const errorMsg = document.getElementById('datte-custom-order-error');
+        const clearBtn = document.getElementById('datte-download-status-clear');
+
+        // Add clear button event handler
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                clearAllStatusItems();
+            });
+        }
 
         /**
          * Validates the input and shows/hides error message
