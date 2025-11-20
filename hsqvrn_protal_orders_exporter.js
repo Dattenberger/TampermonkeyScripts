@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.4.4
+// @version      2.4.5
 // @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status (Refactored)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -99,12 +99,20 @@
             }
 
             .datte-custom-order-label {
-                display: block;
+                display: flex;
+                align-items: center;
+                gap: 8px;
                 margin-bottom: 8px;
                 font-weight: 600;
                 font-size: 14px;
                 color: #3d3d3c;
                 font-family: "Husqvarna Gothic", Arial, sans-serif;
+            }
+
+            .datte-muted {
+                font-size: 12px;
+                font-weight: 400;
+                color: #999;
             }
 
             .datte-custom-order-input {
@@ -217,9 +225,15 @@
                 padding: 20px;
                 border-bottom: 1px solid #e0e0e0;
                 font-family: "Husqvarna Gothic", Arial, sans-serif;
+            }
+
+            .datte-confirm-title {
                 font-size: 18px;
                 font-weight: 600;
                 color: #3d3d3c;
+                display: flex;
+                align-items: center;
+                gap: 8px;
             }
 
             .datte-confirm-body {
@@ -274,10 +288,19 @@
                 background: #3d3d3c;
                 color: white;
                 border-color: #3d3d3c;
+                display: flex;
+                align-items: center;
+                gap: 6px;
             }
 
             .datte-confirm-btn-ok:hover {
                 background: #2d2d2c;
+            }
+
+            .datte-enter-icon {
+                width: 16px;
+                height: 16px;
+                flex-shrink: 0;
             }
         `,
 
@@ -1114,7 +1137,10 @@
             modal.innerHTML = `
                 <div class="datte-confirm-dialog">
                     <div class="datte-confirm-header">
-                        ${orderNumbers.length} Aufträge herunterladen?
+                        <div class="datte-confirm-title">
+                            ${orderNumbers.length} Aufträge herunterladen?
+                            <span class="datte-muted">(Enter zum Bestätigen)</span>
+                        </div>
                     </div>
                     <div class="datte-confirm-body">
                         <p>Möchten Sie wirklich ${orderNumbers.length} Aufträge herunterladen?</p>
@@ -1127,6 +1153,10 @@
                             Abbrechen
                         </button>
                         <button class="datte-confirm-btn datte-confirm-btn-ok">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="datte-enter-icon">
+                                <polyline points="9 10 4 15 9 20" />
+                                <path d="M20 4v7a4 4 0 0 1-4 4H4" />
+                            </svg>
                             OK - Herunterladen
                         </button>
                     </div>
@@ -1312,7 +1342,8 @@
             <div class="datte-custom-order-group">
                 <div class="datte-custom-order-wrapper">
                     <label for="datte-custom-order-number" class="datte-custom-order-label">
-                        CSV-Export für mehrere Auftragsnummern
+                        <span>CSV-Export für mehrere Auftragsnummern</span>
+                        <span class="datte-muted">(Enter drücken)</span>
                     </label>
                     <input type="text"
                            id="datte-custom-order-number"
