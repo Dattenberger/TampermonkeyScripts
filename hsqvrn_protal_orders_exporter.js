@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.2.0
+// @version      2.2.1
 // @description  Exportiert Bestelldaten via GraphQL mit individueller Bestellnummern-Eingabe
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -816,11 +816,21 @@
      * Creates and attaches custom order number input UI to order list page
      */
     function attachCustomOrderInput() {
+        console.log('[CustomOrderInput] Attempting to attach custom order input...');
+
         const orderListPage = document.querySelector('[data-testid="order-list-page"]');
-        if (!orderListPage) return;
+        if (!orderListPage) {
+            console.log('[CustomOrderInput] Order list page not found');
+            return;
+        }
+
+        console.log('[CustomOrderInput] Order list page found:', orderListPage);
 
         // Check if already exists
-        if (document.getElementById('orders')) return;
+        if (document.getElementById('orders')) {
+            console.log('[CustomOrderInput] Orders div already exists');
+            return;
+        }
 
         // Create the custom input container
         const ordersDiv = document.createElement('div');
@@ -850,6 +860,7 @@
 
         // Insert as first child of order list page
         orderListPage.insertBefore(ordersDiv, orderListPage.firstChild);
+        console.log('[CustomOrderInput] Orders div inserted successfully');
 
         // Get references to elements
         const input = document.getElementById('custom-order-number');
