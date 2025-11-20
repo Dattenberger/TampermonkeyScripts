@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.3.0
-// @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status
+// @version      2.4.0
+// @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status (Refactored)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
 // @grant        GM_addStyle
@@ -15,549 +15,587 @@
 (function () {
     'use strict';
 
-    GM_addStyle(`
-        /* Export button styling */
-        a.export-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: .5rem;
-            cursor: pointer;
-            text-decoration: none;
-            margin-left: 5px;
-            transition: opacity 0.2s ease;
-            /*padding: 0.5em 1em !important;*/
-            border-radius: 8px;
-            padding: 12px 24px;
-            border: 1px solid #3d3d3c;
-            font-family: "Husqvarna Gothic", Arial, sans-serif;
-            line-height: 16px;
-            font-size: 14px;
-            transition: unset;
-            text-transform: uppercase;
-        }
+    // ============================================================================
+    // CSS STYLES - Organized by Component
+    // ============================================================================
 
-        /* Loading state */
-        a.export-btn.loading {
-            background: #6f6f6f;
-            color: white;
-            pointer-events: none;
-        }
-
-        /* Queued state */
-        a.export-btn.queued {
-            background-color: #ffc107;
-            border-color: #ffc107;
-            color: #212529;
-            pointer-events: none;
-        }
-
-        /* Success state */
-        a.export-btn.success {
-            background-color: #28a745;
-            border-color: #28a745;
-            color: white;
-        }
-
-        a.export-btn.success:hover {
-            background-color: #218838;
-            border-color: #1e7e34;
-        }
-
-        /* Error state */
-        a.export-btn.error {
-            background-color: #dc3545;
-            border-color: #dc3545;
-            color: white;
-        }
-
-        a.export-btn.error:hover {
-            background-color: #c82333;
-            border-color: #bd2130;
-        }
-
-
-        /* Loading spinner animation */
-        .loading-spinner {
-            animation: spin 1s linear infinite;
-        }
-
-        /* Keyframes for spinner rotation */
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Custom order input section */
-        .datte-custom-order-container {
-            background: white;
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 8px;
-            border: 1px solid #e0e0e0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .datte-custom-order-group {
-            display: flex;
-            gap: 12px;
-            align-items: flex-start;
-            flex-wrap: wrap;
-        }
-
-        .datte-custom-order-wrapper {
-            flex: 1;
-            min-width: 200px;
-            max-width: 400px;
-        }
-
-        .datte-custom-order-label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            font-size: 14px;
-            color: #3d3d3c;
-            font-family: "Husqvarna Gothic", Arial, sans-serif;
-        }
-
-        .datte-custom-order-input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #3d3d3c;
-            border-radius: 8px;
-            font-size: 14px;
-            font-family: "Husqvarna Gothic", Arial, sans-serif;
-            transition: border-color 0.2s ease;
-        }
-
-        .datte-custom-order-input:focus {
-            outline: none;
-            border-color: #000;
-        }
-
-        .datte-custom-order-input.error {
-            border-color: #dc3545;
-        }
-
-        .datte-custom-order-error {
-            color: #dc3545;
-            font-size: 12px;
-            margin-top: 6px;
-            display: none;
-            font-family: "Husqvarna Gothic", Arial, sans-serif;
-        }
-
-        .datte-custom-order-error.show {
-            display: block;
-        }
-
-        .datte-custom-order-btn {
-            margin-top: 28px;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            cursor: pointer;
-            text-decoration: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            border: 1px solid #3d3d3c;
-            background: white;
-            font-family: "Husqvarna Gothic", Arial, sans-serif;
-            line-height: 16px;
-            font-size: 14px;
-            text-transform: uppercase;
-            transition: background-color 0.2s ease, border-color 0.2s ease;
-        }
-
-        .datte-custom-order-btn:hover:not(.loading):not(.disabled) {
-            background: #f5f5f5;
-        }
-
-        .datte-custom-order-btn.loading {
-            background: #6f6f6f;
-            color: white;
-            pointer-events: none;
-        }
-
-        .datte-custom-order-btn.disabled {
-            opacity: 0.5;
-            pointer-events: none;
-        }
-
-        .datte-custom-order-btn.success {
-            background-color: #28a745;
-            border-color: #28a745;
-            color: white;
-        }
-
-        .datte-custom-order-btn.error {
-            background-color: #dc3545;
-            border-color: #dc3545;
-            color: white;
-        }
-
-        /* Confirmation Modal */
-        .datte-confirm-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            animation: fadeIn 0.2s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .datte-confirm-dialog {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            max-width: 500px;
-            width: 90%;
-            max-height: 80vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            animation: slideIn 0.2s ease;
-        }
-
-        @keyframes slideIn {
-            from { transform: translateY(-20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        .datte-confirm-header {
-            padding: 20px;
-            border-bottom: 1px solid #e0e0e0;
-            font-family: "Husqvarna Gothic", Arial, sans-serif;
-            font-size: 18px;
-            font-weight: 600;
-            color: #3d3d3c;
-        }
-
-        .datte-confirm-body {
-            padding: 20px;
-            overflow-y: auto;
-            flex: 1;
-            font-family: "Husqvarna Gothic", Arial, sans-serif;
-            color: #3d3d3c;
-        }
-
-        .datte-confirm-order-list {
-            margin: 15px 0;
-            padding: 15px;
-            background: #f5f5f5;
-            border-radius: 4px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .datte-confirm-order-item {
-            padding: 6px 0;
-            font-family: monospace;
-            font-size: 14px;
-        }
-
-        .datte-confirm-actions {
-            padding: 15px 20px;
-            border-top: 1px solid #e0e0e0;
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-        }
-
-        .datte-confirm-btn {
-            padding: 10px 20px;
-            border-radius: 6px;
-            border: 1px solid #3d3d3c;
-            font-family: "Husqvarna Gothic", Arial, sans-serif;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .datte-confirm-btn-cancel {
-            background: white;
-            color: #3d3d3c;
-        }
-
-        .datte-confirm-btn-cancel:hover {
-            background: #f5f5f5;
-        }
-
-        .datte-confirm-btn-ok {
-            background: #3d3d3c;
-            color: white;
-            border-color: #3d3d3c;
-        }
-
-        .datte-confirm-btn-ok:hover {
-            background: #2d2d2c;
-        }
-
-        /* Download Status Display */
-        .datte-download-status-container {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f9f9f9;
-            border-radius: 6px;
-            border: 1px solid #e0e0e0;
-        }
-
-        .datte-download-status-header {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            margin-bottom: 12px;
-            font-family: "Husqvarna Gothic", Arial, sans-serif;
-            font-size: 14px;
-            font-weight: 600;
-            color: #3d3d3c;
-        }
-
-        .datte-download-status-count {
-            background: #3d3d3c;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-        }
-
-        .datte-download-status-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .datte-download-status-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 10px 12px;
-            background: white;
-            border-radius: 4px;
-            border: 1px solid #e0e0e0;
-            font-family: "Husqvarna Gothic", Arial, sans-serif;
-            font-size: 13px;
-            transition: all 0.3s ease;
-        }
-
-        .datte-download-status-item.status-pending {
-            border-left: 3px solid #ffc107;
-        }
-
-        .datte-download-status-item.status-loading {
-            border-left: 3px solid #6f6f6f;
-        }
-
-        .datte-download-status-item.status-success {
-            border-left: 3px solid #28a745;
-        }
-
-        .datte-download-status-item.status-error {
-            border-left: 3px solid #dc3545;
-        }
-
-        .datte-download-status-number {
-            font-family: monospace;
-            font-weight: 600;
-            color: #3d3d3c;
-            min-width: 80px;
-        }
-
-        .datte-download-status-icon {
-            flex-shrink: 0;
-        }
-
-        .datte-download-status-text {
-            flex: 1;
-            color: #666;
-        }
-    `);
-
-    // Configuration constants
-    /**
-     * Skonto-Faktor für Husqvarna-Bestellungen (3% Rabatt bei Zahlung innerhalb von 14 Tagen)
-     * Formel: nettoPreis * DISCOUNT_FACTOR = nettoPreis * 0.97 = nettoPreis - (nettoPreis * 0.03)
-     * @constant {number}
-     */
-    const DISCOUNT_FACTOR = 0.97;
-    const DEBOUNCE_DELAY = 120;
-    const URL_CLEANUP_DELAY = 10000;
-    const MAX_RETRY_ATTEMPTS = 5;
-    const RETRY_DELAY_BASE = 1000; // Base delay in ms for retry backoff
-    const MAX_MULTI_ORDER_LIMIT = 20; // Maximum number of orders that can be downloaded at once
-
-    // UI Constants
-    const LOADING_TEXT = 'Exportiere...';
-    const SPINNER_SVG = '<svg class="loading-spinner" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" stroke-dasharray="31.416" stroke-dashoffset="31.416" fill="none" opacity="0.25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>';
-
-    // Cache and download management
-    const orderCache = new Map();
-    const activeDownloads = new Set(); // Track active order numbers
-    const downloadQueue = []; // Queue for pending downloads
-    const MAX_CONCURRENT_DOWNLOADS = 2;
-    const retryCounters = new Map(); // Track retry attempts per order
-    const downloadStatusItems = new Map(); // Track status display items per order number
-
-    // Queue item structure: { orderNumber, siteName, filename, $btn, iconSelector, textSelector, originalIcon, originalText, retryAttempt }
-
-    /**
-     * Creates a debounced function that delays invoking func until after waitTime milliseconds
-     * have elapsed since the last time the debounced function was invoked
-     * @param {Function} func - The function to debounce
-     * @param {number} waitTime - The number of milliseconds to delay (default: 150)
-     * @returns {Function} The debounced function
-     */
-    function debounce(func, waitTime = 150) {
-        let timeout;
-        return (...args) => {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func(...args), waitTime)
-        }
-    }
-
-    /**
-     * Safely converts a value to string, returning empty string for null/undefined
-     * @param {*} value - The value to convert to string
-     * @returns {string} The string representation or empty string
-     */
-    function nullSafeString(value){
-        return value == null ? '' : String(value);
-    }
-
-    /**
-     * Validates if the provided order number has the correct format
-     * @param {string} orderNumber - The order number to validate
-     * @returns {boolean} True if valid, false otherwise
-     */
-    function validateOrderNumber(orderNumber) {
-        return /^\d{6,}$/.test(String(orderNumber || ''));
-    }
-
-    /**
-     * Parses multiple order numbers from input string with various separators
-     * @param {string} input - The input string with one or more order numbers
-     * @returns {Object} Object with valid array and invalid array { valid: [], invalid: [] }
-     */
-    function parseOrderNumbers(input) {
-        if (!input || typeof input !== 'string') {
-            return { valid: [], invalid: [] };
-        }
-
-        // Split by comma, space, or question mark (one or more)
-        const parts = input.trim().split(/[,\s?]+/).filter(part => part.length > 0);
-
-        const valid = [];
-        const invalid = [];
-
-        parts.forEach(part => {
-            const trimmed = part.trim();
-            if (validateOrderNumber(trimmed)) {
-                valid.push(trimmed);
-            } else if (trimmed.length > 0) {
-                invalid.push(trimmed);
+    const Styles = {
+        exportButton: `
+            /* Export button styling */
+            a.export-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: .5rem;
+                cursor: pointer;
+                text-decoration: none;
+                margin-left: 5px;
+                transition: opacity 0.2s ease;
+                border-radius: 8px;
+                padding: 12px 24px;
+                border: 1px solid #3d3d3c;
+                font-family: "Husqvarna Gothic", Arial, sans-serif;
+                line-height: 16px;
+                font-size: 14px;
+                text-transform: uppercase;
             }
-        });
 
-        return { valid, invalid };
-    }
+            a.export-btn.loading {
+                background: #6f6f6f;
+                color: white;
+                pointer-events: none;
+            }
 
-    /**
-     * Safely matches a regex against a string and returns the specified group
-     * @param {string} inputString - The string to match against
-     * @param {RegExp} regex - The regular expression
-     * @param {number} groupIndex - The group index to return (default: 1)
-     * @returns {string} The matched group or empty string
-     */
-    function nullSafeMatch(inputString, regex, groupIndex = 1) {
-        if (!inputString) return '';
-        const match = String(inputString).match(regex);
-        return (match && match.length > groupIndex) ? match[groupIndex] : '';
-    }
+            a.export-btn.queued {
+                background-color: #ffc107;
+                border-color: #ffc107;
+                color: #212529;
+                pointer-events: none;
+            }
 
-    /**
-     * Parses a European formatted number (1.234,56) to a JavaScript number
-     * @param {string|number} input - The input to parse
-     * @returns {number} The parsed number or NaN
-     */
-    function parseEuropeanNumber(input) {
-        if (!input) return NaN;
-        const cleanedNumber = parseFloat(String(input).trim().replace(/\./g,'').replace(',', '.').replace(/[^\d.-]/g, ''));
-        return Number.isFinite(cleanedNumber) ? cleanedNumber : NaN;
-    }
+            a.export-btn.success {
+                background-color: #28a745;
+                border-color: #28a745;
+                color: white;
+            }
 
-    const GERMAN_MONTHS = {
-        'Januar': '01',
-        'Februar': '02',
-        'März': '03',
-        'Maerz': '03',
-        'April': '04',
-        'Mai': '05',
-        'Juni': '06',
-        'Juli': '07',
-        'August': '08',
-        'September': '09',
-        'Oktober': '10',
-        'Okt.': '10',
-        'November': '11',
-        'Dezember': '12',
-        'Dez.': '12'
+            a.export-btn.success:hover {
+                background-color: #218838;
+                border-color: #1e7e34;
+            }
+
+            a.export-btn.error {
+                background-color: #dc3545;
+                border-color: #dc3545;
+                color: white;
+            }
+
+            a.export-btn.error:hover {
+                background-color: #c82333;
+                border-color: #bd2130;
+            }
+        `,
+
+        customOrderInput: `
+            /* Custom order input section */
+            .datte-custom-order-container {
+                background: white;
+                padding: 20px;
+                margin: 20px 0;
+                border-radius: 8px;
+                border: 1px solid #e0e0e0;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+
+            .datte-custom-order-group {
+                display: flex;
+                gap: 12px;
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+
+            .datte-custom-order-wrapper {
+                flex: 1;
+                min-width: 200px;
+                max-width: 400px;
+            }
+
+            .datte-custom-order-label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 600;
+                font-size: 14px;
+                color: #3d3d3c;
+                font-family: "Husqvarna Gothic", Arial, sans-serif;
+            }
+
+            .datte-custom-order-input {
+                width: 100%;
+                padding: 12px 16px;
+                border: 1px solid #3d3d3c;
+                border-radius: 8px;
+                font-size: 14px;
+                font-family: "Husqvarna Gothic", Arial, sans-serif;
+                transition: border-color 0.2s ease;
+            }
+
+            .datte-custom-order-input:focus {
+                outline: none;
+                border-color: #000;
+            }
+
+            .datte-custom-order-input.error {
+                border-color: #dc3545;
+            }
+
+            .datte-custom-order-error {
+                color: #dc3545;
+                font-size: 12px;
+                margin-top: 6px;
+                display: none;
+                font-family: "Husqvarna Gothic", Arial, sans-serif;
+            }
+
+            .datte-custom-order-error.show {
+                display: block;
+            }
+
+            .datte-custom-order-btn {
+                margin-top: 28px;
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+                cursor: pointer;
+                text-decoration: none;
+                padding: 12px 24px;
+                border-radius: 8px;
+                border: 1px solid #3d3d3c;
+                background: white;
+                font-family: "Husqvarna Gothic", Arial, sans-serif;
+                line-height: 16px;
+                font-size: 14px;
+                text-transform: uppercase;
+                transition: background-color 0.2s ease, border-color 0.2s ease;
+            }
+
+            .datte-custom-order-btn:hover:not(.loading):not(.disabled) {
+                background: #f5f5f5;
+            }
+
+            .datte-custom-order-btn.loading {
+                background: #6f6f6f;
+                color: white;
+                pointer-events: none;
+            }
+
+            .datte-custom-order-btn.disabled {
+                opacity: 0.5;
+                pointer-events: none;
+            }
+
+            .datte-custom-order-btn.success {
+                background-color: #28a745;
+                border-color: #28a745;
+                color: white;
+            }
+
+            .datte-custom-order-btn.error {
+                background-color: #dc3545;
+                border-color: #dc3545;
+                color: white;
+            }
+        `,
+
+        confirmModal: `
+            /* Confirmation Modal */
+            .datte-confirm-modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                animation: fadeIn 0.2s ease;
+            }
+
+            .datte-confirm-dialog {
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+                max-width: 500px;
+                width: 90%;
+                max-height: 80vh;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                animation: slideIn 0.2s ease;
+            }
+
+            .datte-confirm-header {
+                padding: 20px;
+                border-bottom: 1px solid #e0e0e0;
+                font-family: "Husqvarna Gothic", Arial, sans-serif;
+                font-size: 18px;
+                font-weight: 600;
+                color: #3d3d3c;
+            }
+
+            .datte-confirm-body {
+                padding: 20px;
+                overflow-y: auto;
+                flex: 1;
+                font-family: "Husqvarna Gothic", Arial, sans-serif;
+                color: #3d3d3c;
+            }
+
+            .datte-confirm-order-list {
+                margin: 15px 0;
+                padding: 15px;
+                background: #f5f5f5;
+                border-radius: 4px;
+                max-height: 200px;
+                overflow-y: auto;
+            }
+
+            .datte-confirm-order-item {
+                padding: 6px 0;
+                font-family: monospace;
+                font-size: 14px;
+            }
+
+            .datte-confirm-actions {
+                padding: 15px 20px;
+                border-top: 1px solid #e0e0e0;
+                display: flex;
+                gap: 12px;
+                justify-content: flex-end;
+            }
+
+            .datte-confirm-btn {
+                padding: 10px 20px;
+                border-radius: 6px;
+                border: 1px solid #3d3d3c;
+                font-family: "Husqvarna Gothic", Arial, sans-serif;
+                font-size: 14px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            .datte-confirm-btn-cancel {
+                background: white;
+                color: #3d3d3c;
+            }
+
+            .datte-confirm-btn-cancel:hover {
+                background: #f5f5f5;
+            }
+
+            .datte-confirm-btn-ok {
+                background: #3d3d3c;
+                color: white;
+                border-color: #3d3d3c;
+            }
+
+            .datte-confirm-btn-ok:hover {
+                background: #2d2d2c;
+            }
+        `,
+
+        statusDisplay: `
+            /* Download Status Display */
+            .datte-download-status-container {
+                margin-top: 20px;
+                padding: 15px;
+                background: #f9f9f9;
+                border-radius: 6px;
+                border: 1px solid #e0e0e0;
+            }
+
+            .datte-download-status-header {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                margin-bottom: 12px;
+                font-family: "Husqvarna Gothic", Arial, sans-serif;
+                font-size: 14px;
+                font-weight: 600;
+                color: #3d3d3c;
+            }
+
+            .datte-download-status-count {
+                background: #3d3d3c;
+                color: white;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 12px;
+            }
+
+            .datte-download-status-list {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .datte-download-status-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 12px;
+                background: white;
+                border-radius: 4px;
+                border: 1px solid #e0e0e0;
+                font-family: "Husqvarna Gothic", Arial, sans-serif;
+                font-size: 13px;
+                transition: all 0.3s ease;
+            }
+
+            .datte-download-status-item.status-pending {
+                border-left: 3px solid #ffc107;
+            }
+
+            .datte-download-status-item.status-loading {
+                border-left: 3px solid #6f6f6f;
+            }
+
+            .datte-download-status-item.status-success {
+                border-left: 3px solid #28a745;
+            }
+
+            .datte-download-status-item.status-error {
+                border-left: 3px solid #dc3545;
+            }
+
+            .datte-download-status-number {
+                font-family: monospace;
+                font-weight: 600;
+                color: #3d3d3c;
+                min-width: 80px;
+            }
+
+            .datte-download-status-icon {
+                flex-shrink: 0;
+            }
+
+            .datte-download-status-text {
+                flex: 1;
+                color: #666;
+            }
+        `,
+
+        animations: `
+            /* Animations */
+            .loading-spinner {
+                animation: spin 1s linear infinite;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+
+            @keyframes slideIn {
+                from { transform: translateY(-20px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+        `
     };
 
-    /**
-     * Formats various German date formats to DD.MM.YYYY format
-     * Supports both numeric (1.2.2024) and text formats (1. Januar 2024)
-     * @param {string|Date} input - The date input to format
-     * @returns {string} Formatted date as DD.MM.YYYY or empty string if invalid
-     */
-    function formatGermanDate(input) {
-        if (!input) return '';
-        const stringInput = String(input).trim();
-        const numericMatch = stringInput.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-        if (numericMatch) {
-            const day = numericMatch[1].padStart(2, '0'), month = numericMatch[2].padStart(2, '0'), year = numericMatch[3];
+    // Apply all styles
+    Object.values(Styles).forEach(css => GM_addStyle(css));
+
+    // ============================================================================
+    // CONFIGURATION
+    // ============================================================================
+
+    const Config = {
+        // Business Logic
+        business: {
+            /**
+             * Skonto-Faktor für Husqvarna-Bestellungen (3% Rabatt bei Zahlung innerhalb von 14 Tagen)
+             * Formel: nettoPreis * DISCOUNT_FACTOR = nettoPreis * 0.97 = nettoPreis - (nettoPreis * 0.03)
+             */
+            DISCOUNT_FACTOR: 0.97,
+            MAX_MULTI_ORDER_LIMIT: 20 // Maximum number of orders that can be downloaded at once
+        },
+
+        // Timing
+        timing: {
+            DEBOUNCE_DELAY: 120,
+            URL_CLEANUP_DELAY: 10000,
+            RETRY_DELAY_BASE: 1000, // Base delay in ms for retry backoff
+            STATUS_SUCCESS_REMOVE_DELAY: 5000 // Auto-remove successful status after 5s
+        },
+
+        // Retry & Download
+        download: {
+            MAX_RETRY_ATTEMPTS: 5,
+            MAX_CONCURRENT_DOWNLOADS: 2
+        },
+
+        // UI Text & Icons
+        ui: {
+            LOADING_TEXT: 'Exportiere...',
+            SPINNER_SVG: '<svg class="loading-spinner" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" stroke-dasharray="31.416" stroke-dashoffset="31.416" fill="none" opacity="0.25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>'
+        }
+    };
+
+    // ============================================================================
+    // STATE MANAGEMENT
+    // ============================================================================
+
+    const State = {
+        orderCache: new Map(), // Cache for fetched orders
+        activeDownloads: new Set(), // Track active order numbers
+        downloadQueue: [], // Queue for pending downloads
+        retryCounters: new Map(), // Track retry attempts per order
+        downloadStatusItems: new Map() // Track status display items per order number
+    };
+
+    // Queue item structure: { orderNumber, siteName, filename, $btn, iconSelector, textSelector, originalIcon, originalText, retryAttempt, isCustomOrderInput }
+
+    // ============================================================================
+    // UTILITY FUNCTIONS
+    // ============================================================================
+
+    const Utils = {
+        /**
+         * Creates a debounced function that delays invoking func until after waitTime milliseconds
+         * @param {Function} func - The function to debounce
+         * @param {number} waitTime - The number of milliseconds to delay (default: 150)
+         * @returns {Function} The debounced function
+         */
+        debounce(func, waitTime = 150) {
+            let timeout;
+            return (...args) => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func(...args), waitTime)
+            }
+        },
+
+        /**
+         * Safely converts a value to string, returning empty string for null/undefined
+         * @param {*} value - The value to convert to string
+         * @returns {string} The string representation or empty string
+         */
+        nullSafeString(value) {
+            return value == null ? '' : String(value);
+        },
+
+        /**
+         * Validates if the provided order number has the correct format
+         * @param {string} orderNumber - The order number to validate
+         * @returns {boolean} True if valid, false otherwise
+         */
+        validateOrderNumber(orderNumber) {
+            return /^\d{6,}$/.test(String(orderNumber || ''));
+        },
+
+        /**
+         * Parses multiple order numbers from input string with various separators
+         * @param {string} input - The input string with one or more order numbers
+         * @returns {Object} Object with valid array and invalid array { valid: [], invalid: [] }
+         */
+        parseOrderNumbers(input) {
+            if (!input || typeof input !== 'string') {
+                return { valid: [], invalid: [] };
+            }
+
+            // Split by comma, space, or question mark (one or more)
+            const parts = input.trim().split(/[,\s?]+/).filter(part => part.length > 0);
+
+            const valid = [];
+            const invalid = [];
+
+            parts.forEach(part => {
+                const trimmed = part.trim();
+                if (this.validateOrderNumber(trimmed)) {
+                    valid.push(trimmed);
+                } else if (trimmed.length > 0) {
+                    invalid.push(trimmed);
+                }
+            });
+
+            return { valid, invalid };
+        },
+
+        /**
+         * Safely matches a regex against a string and returns the specified group
+         * @param {string} inputString - The string to match against
+         * @param {RegExp} regex - The regular expression
+         * @param {number} groupIndex - The group index to return (default: 1)
+         * @returns {string} The matched group or empty string
+         */
+        nullSafeMatch(inputString, regex, groupIndex = 1) {
+            if (!inputString) return '';
+            const match = String(inputString).match(regex);
+            return (match && match.length > groupIndex) ? match[groupIndex] : '';
+        },
+
+        /**
+         * Parses a European formatted number (1.234,56) to a JavaScript number
+         * @param {string|number} input - The input to parse
+         * @returns {number} The parsed number or NaN
+         */
+        parseEuropeanNumber(input) {
+            if (!input) return NaN;
+            const cleanedNumber = parseFloat(String(input).trim().replace(/\./g,'').replace(',', '.').replace(/[^\d.-]/g, ''));
+            return Number.isFinite(cleanedNumber) ? cleanedNumber : NaN;
+        },
+
+        // German month names mapping
+        GERMAN_MONTHS: {
+            'Januar': '01',
+            'Februar': '02',
+            'März': '03',
+            'Maerz': '03',
+            'April': '04',
+            'Mai': '05',
+            'Juni': '06',
+            'Juli': '07',
+            'August': '08',
+            'September': '09',
+            'Oktober': '10',
+            'Okt.': '10',
+            'November': '11',
+            'Dezember': '12',
+            'Dez.': '12'
+        },
+
+        /**
+         * Formats various German date formats to DD.MM.YYYY format
+         * Supports both numeric (1.2.2024) and text formats (1. Januar 2024)
+         * @param {string|Date} input - The date input to format
+         * @returns {string} Formatted date as DD.MM.YYYY or empty string if invalid
+         */
+        formatGermanDate(input) {
+            if (!input) return '';
+            const stringInput = String(input).trim();
+            const numericMatch = stringInput.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+            if (numericMatch) {
+                const day = numericMatch[1].padStart(2, '0'), month = numericMatch[2].padStart(2, '0'), year = numericMatch[3];
+                return `${day}.${month}.${year}`;
+            }
+            const textMatch = stringInput.match(/^(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ\.]+)\s+(\d{4})$/);
+            if (textMatch) {
+                const day = textMatch[1].padStart(2, '0'), monthCode = this.GERMAN_MONTHS[textMatch[2]] || '', year = textMatch[3];
+                if (monthCode) return `${day}.${monthCode}.${year}`;
+            }
+            return '';
+        },
+
+        /**
+         * Converts an ISO date string to German DD.MM.YYYY format
+         * @param {string} isoString - ISO date string (e.g., "2024-01-15T10:30:00Z")
+         * @returns {string} Formatted date as DD.MM.YYYY or empty string if invalid
+         */
+        formatDateFromISO(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            if (isNaN(date)) return '';
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
             return `${day}.${month}.${year}`;
-        }
-        const textMatch = stringInput.match(/^(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ\.]+)\s+(\d{4})$/);
-        if (textMatch) {
-            const day = textMatch[1].padStart(2, '0'), monthCode = GERMAN_MONTHS[textMatch[2]] || '', year = textMatch[3];
-            if (monthCode) return `${day}.${monthCode}.${year}`;
-        }
-        return '';
-    }
+        },
 
-    /**
-     * Converts an ISO date string to German DD.MM.YYYY format
-     * @param {string} isoString - ISO date string (e.g., "2024-01-15T10:30:00Z")
-     * @returns {string} Formatted date as DD.MM.YYYY or empty string if invalid
-     */
-    function formatDateFromISO(isoString) {
-        if (!isoString) return '';
-        const date = new Date(isoString);
-        if (isNaN(date)) return '';
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = date.getFullYear();
-        return `${day}.${month}.${year}`;
-    }
-
-    /**
-     * Sanitizes a filename by removing invalid characters and adding .csv extension
-     * @param {string} filename - The filename to sanitize
-     * @returns {string} Sanitized filename with .csv extension
-     */
-    function sanitizeFilename(filename) {
-        if (!filename) return `order-${Date.now()}.csv`;
-        return String(filename).trim().replace(/[\\/:*?"<>|]+/g, '_') + '.csv';
-    }
+        /**
+         * Sanitizes a filename by removing invalid characters and adding .csv extension
+         * @param {string} filename - The filename to sanitize
+         * @returns {string} Sanitized filename with .csv extension
+         */
+        sanitizeFilename(filename) {
+            if (!filename) return `order-${Date.now()}.csv`;
+            return String(filename).trim().replace(/[\\/:*?"<>|]+/g, '_') + '.csv';
+        }
+    };
 
     function extractOrderNumber() {
         const headingElement = document.querySelector('[data-testid="order-detail-page"] h1');
