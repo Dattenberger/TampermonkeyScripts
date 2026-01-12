@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Gmail: Search Sender + Mark Read / Archive (Clean, ES5-safe)
+// @name         Gmail: Search Sender + Mark Read / Archive
 // @namespace    https://latinsud.com/
 // @supportURL   https://github.com/LatinSuD/gmail-search-by-sender/
-// @version      1.2.0
+// @version      1.8.0
 // @description  Adds toolbar buttons: search by sender of opened email, mark current page as read, archive current page.
 // @author       LatinSuD (refactor)
 // @match        https://mail.google.com/mail/*
@@ -13,224 +13,189 @@
 (function () {
     "use strict";
 
-    /**
-     * Why this version:
-     * - No optional chaining, no async/await, no template literals, no CSS.escape
-     *   → avoids syntax errors in some userscript engines / older runtimes.
-     * - Gmail DOM is a moving target → defensive checks + fallbacks (keyboard shortcuts).
-     */
+    // ----------------------------
+    // Constants
+    // ----------------------------
 
-        // ----------------------------
-        // Selectors / constants
-        // ----------------------------
-
-    var SELECTORS = {
-            toolbar: 'div[gh="mtb"]',
-            toolbarContentContainer: 'div[gh="mtb"] > div > div',
-            searchInput: 'input[name="q"]',
-            emailSpanInMain: 'div[role="main"] span[email]',
-            selectAllCheckbox: 'span[role="checkbox"]',
-            toolbarIconCandidates: ".bAO"
-        };
-
-    var UI = {
-        rootId: "gmail-clean-tools-root",
-        btnSearchSenderId: "gmail-btn-search-sender",
-        btnMarkReadId: "gmail-btn-mark-read-page",
-        btnArchiveId: "gmail-btn-archive-page"
+    const MODES = {
+        READ: "read",
+        ARCHIVE: "archive"
     };
 
-    // Original heuristic from the old script (fragile, language-agnostic)
-    var MARK_AS_READ_ICON_BG_REGEX = /drafts/i;
+    const STORAGE_KEY = "gmail-toolbar-mode";
 
-    // Keyboard shortcuts (work if Gmail shortcuts are enabled):
-    // Mark as read: Shift + I :contentReference[oaicite:0]{index=0}
-    // Archive: E :contentReference[oaicite:1]{index=1}
-    var SHORTCUTS = {
-        markReadKey: "I",
-        markReadShift: true,
-        archiveKey: "E",
-        archiveShift: false
+    const SELECTORS = {
+        toolbar: 'div[gh="mtb"]',
+        toolbarContentContainer: 'div[gh="mtb"] > div > div',
+        searchInput: 'input[name="q"]',
+        searchForm: '#aso_search_form_anchor',
+        searchButton: 'button.gb_Oe',
+        senderEmailInMain: 'div[role="main"] span[email]',
+        selectAllCheckbox: 'span[role="checkbox"]',
+        toolbarIconCandidates: ".bAO"
     };
+
+    const UI_IDS = {
+        buttonsRoot: "gmail-toolbar-buttons-root",
+        modeDropdown: "gmail-mode-dropdown",
+        btnSearchSender: "gmail-btn-search-sender",
+        btnMarkReadPage: "gmail-btn-mark-read-page",
+        btnArchivePage: "gmail-btn-archive-page"
+    };
+
+    const MARK_AS_READ_SPRITE_PATTERN = /drafts/i;
+
+    const GMAIL_SHORTCUTS = {
+        markAsRead: { key: "I", shift: true },
+        archive: { key: "E", shift: false }
+    };
+
+    // ----------------------------
+    // State
+    // ----------------------------
+
+    let currentMode = localStorage.getItem(STORAGE_KEY) || MODES.ARCHIVE;
+
+    function setMode(mode) {
+        currentMode = mode;
+        localStorage.setItem(STORAGE_KEY, mode);
+        updateButtonVisibility();
+    }
 
     // ----------------------------
     // DOM helpers
     // ----------------------------
 
-    function query(selector) {
+    function $(selector) {
         return document.querySelector(selector);
     }
 
-    function queryAll(selector) {
-        return Array.prototype.slice.call(document.querySelectorAll(selector));
+    function $$(selector) {
+        return [...document.querySelectorAll(selector)];
     }
 
-    function isDisplayed(el) {
+    function isVisible(el) {
         if (!el) return false;
 
-        var style = window.getComputedStyle(el);
+        const style = window.getComputedStyle(el);
         if (!style) return true;
 
         if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") return false;
 
-        // Walk up: if any ancestor is display:none, treat as hidden
-        var node = el;
+        let node = el;
         while (node && node.nodeType === 1) {
-            if (node.style && node.style.display === "none") return false;
+            if (node.style?.display === "none") return false;
             node = node.parentElement;
         }
         return true;
     }
 
-    function wait(ms, fn) {
-        window.setTimeout(fn, ms);
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    function clickLikeUser(element) {
+    function simulateClick(element) {
         if (!element) return;
         element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
         element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
-        if (typeof element.click === "function") element.click();
+        element.click?.();
     }
 
-    function dispatchInputEvent(inputEl) {
-        // Gmail often listens to input events to update internal state
-        try {
-            inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-        } catch (e) {
-            // very old engines
-            var evt = document.createEvent("Event");
-            evt.initEvent("input", true, true);
-            inputEl.dispatchEvent(evt);
-        }
+    function triggerInputEvent(inputEl) {
+        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
-    function sendGmailShortcut(key, useShift) {
-        // Works if Gmail keyboard shortcuts are enabled and focus is in a context Gmail listens to.
-        // We dispatch key events on document.
-        var init = {
+    function sendKeyboardShortcut(key, useShift = false) {
+        const eventInit = {
             bubbles: true,
             cancelable: true,
-            key: key,
-            shiftKey: !!useShift
+            key,
+            shiftKey: useShift
         };
 
-        try {
-            document.dispatchEvent(new KeyboardEvent("keydown", init));
-            document.dispatchEvent(new KeyboardEvent("keypress", init));
-            document.dispatchEvent(new KeyboardEvent("keyup", init));
-        } catch (e) {
-            // Some browsers restrict KeyboardEvent construction; do best-effort fallback.
-            var down = document.createEvent("KeyboardEvent");
-            if (down.initKeyboardEvent) {
-                down.initKeyboardEvent("keydown", true, true, window, key, 0, useShift, false, false, false);
-                document.dispatchEvent(down);
-            }
-        }
+        document.dispatchEvent(new KeyboardEvent("keydown", eventInit));
+        document.dispatchEvent(new KeyboardEvent("keypress", eventInit));
+        document.dispatchEvent(new KeyboardEvent("keyup", eventInit));
     }
 
     // ----------------------------
     // Gmail DOM lookups
     // ----------------------------
 
-    function findToolbar() {
-        return query(SELECTORS.toolbar);
+    function getToolbar() {
+        return $(SELECTORS.toolbar);
     }
 
-    function findToolbarContainer(toolbar) {
+    function getToolbarButtonContainer(toolbar) {
         if (!toolbar) return null;
 
-        // Prefer the historical injection point
-        var container = toolbar.querySelector(":scope > div > div");
-        if (container) return container;
-
-        container = query(SELECTORS.toolbarContentContainer);
-        return container || toolbar;
+        const container = toolbar.querySelector(":scope > div > div");
+        return container || $(SELECTORS.toolbarContentContainer) || toolbar;
     }
 
-    function findSearchInput() {
-        return query(SELECTORS.searchInput);
+    function getSearchInput() {
+        return $(SELECTORS.searchInput);
     }
 
-    function getOpenedEmailSenderAddress() {
-        var senderSpan = query(SELECTORS.emailSpanInMain);
-        return senderSpan ? senderSpan.getAttribute("email") : null;
+    function getCurrentEmailSender() {
+        return $(SELECTORS.senderEmailInMain)?.getAttribute("email") ?? null;
     }
 
-    function findSelectAllCheckbox() {
-        var toolbar = findToolbar();
-        if (!toolbar) return null;
-        return toolbar.querySelector(SELECTORS.selectAllCheckbox);
+    function getSelectAllCheckbox() {
+        return getToolbar()?.querySelector(SELECTORS.selectAllCheckbox) ?? null;
     }
 
-    function getToolbarIconCandidates() {
-        return queryAll(SELECTORS.toolbarIconCandidates);
-    }
-
-    function findControlByAriaLabel(toolbar, patterns) {
+    function findButtonByAriaLabel(toolbar, patterns) {
         if (!toolbar) return null;
 
-        var candidates = queryAll('button, [role="button"]');
-        // Narrow candidates to toolbar subtree
-        candidates = candidates.filter(function (el) {
-            return toolbar.contains(el);
-        });
+        const candidates = $$('button, [role="button"]').filter(el => toolbar.contains(el));
 
-        for (var i = 0; i < candidates.length; i++) {
-            var el = candidates[i];
-            if (!isDisplayed(el)) continue;
+        for (const el of candidates) {
+            if (!isVisible(el)) continue;
 
-            var label = (el.getAttribute("aria-label") || "").trim();
-            for (var p = 0; p < patterns.length; p++) {
-                if (patterns[p].test(label)) return el;
+            const label = (el.getAttribute("aria-label") || "").trim();
+            if (patterns.some(pattern => pattern.test(label))) {
+                return el;
             }
         }
         return null;
     }
 
-    function findMarkAsReadControl() {
-        var toolbar = findToolbar();
+    function getMarkAsReadButton() {
+        const toolbar = getToolbar();
         if (!toolbar) return null;
 
-        // 1) Prefer aria-label (language-dependent but relatively stable)
-        var aria = findControlByAriaLabel(toolbar, [/mark as read/i, /als gelesen/i, /gelesen markieren/i]);
-        if (aria) return aria;
+        const ariaMatch = findButtonByAriaLabel(toolbar, [/mark as read/i, /als gelesen/i, /gelesen markieren/i]);
+        if (ariaMatch) return ariaMatch;
 
-        // 2) Fallback: old sprite heuristic (language-agnostic but fragile)
-        var icons = getToolbarIconCandidates();
-        for (var i = 0; i < icons.length; i++) {
-            var icon = icons[i];
-            if (!isDisplayed(icon)) continue;
+        for (const icon of $$(SELECTORS.toolbarIconCandidates)) {
+            if (!isVisible(icon)) continue;
 
-            var bg = window.getComputedStyle(icon).backgroundImage || "";
-            if (!MARK_AS_READ_ICON_BG_REGEX.test(bg)) continue;
+            const bgImage = window.getComputedStyle(icon).backgroundImage || "";
+            if (!MARK_AS_READ_SPRITE_PATTERN.test(bgImage)) continue;
 
-            var clickable = icon.parentElement && icon.parentElement.parentElement ? icon.parentElement.parentElement : icon;
-            if (clickable && isDisplayed(clickable)) return clickable;
+            const clickable = icon.parentElement?.parentElement ?? icon;
+            if (isVisible(clickable)) return clickable;
         }
 
         return null;
     }
 
-    function findArchiveControl() {
-        var toolbar = findToolbar();
+    function getArchiveButton() {
+        const toolbar = getToolbar();
         if (!toolbar) return null;
 
-        // 1) Prefer aria-label (DE+EN)
-        var aria = findControlByAriaLabel(toolbar, [/archive/i, /archiv/i, /archivieren/i]);
-        if (aria) return aria;
+        const ariaMatch = findButtonByAriaLabel(toolbar, [/archive/i, /archiv/i, /archivieren/i]);
+        if (ariaMatch) return ariaMatch;
 
-        // 2) Optional icon heuristic (super fragile; kept minimal)
-        var icons = getToolbarIconCandidates();
-        for (var i = 0; i < icons.length; i++) {
-            var icon = icons[i];
-            if (!isDisplayed(icon)) continue;
+        for (const icon of $$(SELECTORS.toolbarIconCandidates)) {
+            if (!isVisible(icon)) continue;
 
-            var bg = window.getComputedStyle(icon).backgroundImage || "";
-            if (!/archive/i.test(bg)) continue;
+            const bgImage = window.getComputedStyle(icon).backgroundImage || "";
+            if (!/archive/i.test(bgImage)) continue;
 
-            var clickable = icon.parentElement && icon.parentElement.parentElement ? icon.parentElement.parentElement : icon;
-            if (clickable && isDisplayed(clickable)) return clickable;
+            const clickable = icon.parentElement?.parentElement ?? icon;
+            if (isVisible(clickable)) return clickable;
         }
 
         return null;
@@ -240,84 +205,112 @@
     // Actions
     // ----------------------------
 
-    function searchByOpenedEmailSender() {
-        var input = findSearchInput();
+    function searchBySender() {
+        const input = getSearchInput();
         if (!input) return;
 
-        var sender = getOpenedEmailSenderAddress();
+        const sender = getCurrentEmailSender();
         if (!sender) return;
 
-        var current = (input.value || "").replace(/\s+$/, "");
-        input.value = current + " from:" + sender;
+        // Build search query based on mode
+        const searchPrefix = currentMode === MODES.READ ? "is:unread" : "in:inbox";
+        input.value = `${searchPrefix} from:${sender}`;
 
-        // Trigger Gmail's internal listeners and run search via Enter
         input.focus();
-        dispatchInputEvent(input);
+        triggerInputEvent(input);
 
-        // Press Enter
-        sendGmailShortcut("Enter", false);
+        // Execute search by clicking the Gmail search button
+        const searchBtn = $(SELECTORS.searchButton);
+        if (searchBtn) {
+            simulateClick(searchBtn);
+        }
     }
 
-    function markSelectedMessagesOnPageAsReadAndGoBack() {
-        var selectAll = findSelectAllCheckbox();
+    async function markPageAsReadAndGoBack() {
+        const selectAll = getSelectAllCheckbox();
         if (!selectAll) return;
 
-        clickLikeUser(selectAll);
+        simulateClick(selectAll);
+        await delay(60);
 
-        wait(60, function () {
-            var control = findMarkAsReadControl();
-            if (control) {
-                clickLikeUser(control);
-            } else {
-                // Fallback: Shift+I = mark as read :contentReference[oaicite:2]{index=2}
-                sendGmailShortcut(SHORTCUTS.markReadKey, SHORTCUTS.markReadShift);
-            }
+        const button = getMarkAsReadButton();
+        if (button) {
+            simulateClick(button);
+        } else {
+            sendKeyboardShortcut(GMAIL_SHORTCUTS.markAsRead.key, GMAIL_SHORTCUTS.markAsRead.shift);
+        }
 
-            wait(30, function () {
-                history.back();
-            });
-        });
+        await delay(30);
+        history.back();
     }
 
-    function archiveSelectedMessagesOnPageAndGoBack() {
-        var selectAll = findSelectAllCheckbox();
+    async function archivePageAndGoBack() {
+        const selectAll = getSelectAllCheckbox();
         if (!selectAll) return;
 
-        clickLikeUser(selectAll);
+        simulateClick(selectAll);
+        await delay(60);
 
-        wait(60, function () {
-            var control = findArchiveControl();
-            if (control) {
-                clickLikeUser(control);
-            } else {
-                // Fallback: E = archive :contentReference[oaicite:3]{index=3}
-                sendGmailShortcut(SHORTCUTS.archiveKey, SHORTCUTS.archiveShift);
-            }
+        const button = getArchiveButton();
+        if (button) {
+            simulateClick(button);
+        } else {
+            sendKeyboardShortcut(GMAIL_SHORTCUTS.archive.key, GMAIL_SHORTCUTS.archive.shift);
+        }
 
-            wait(30, function () {
-                history.back();
-            });
-        });
+        await delay(30);
+        history.back();
     }
 
     // ----------------------------
-    // UI injection
+    // UI
     // ----------------------------
 
-    function createToolbarButton(id, label, onClick) {
-        var btn = document.createElement("button");
+    function updateButtonVisibility() {
+        const markReadBtn = document.getElementById(UI_IDS.btnMarkReadPage);
+        const archiveBtn = document.getElementById(UI_IDS.btnArchivePage);
+        const dropdown = document.getElementById(UI_IDS.modeDropdown);
+
+        if (markReadBtn) {
+            markReadBtn.style.display = currentMode === MODES.READ ? "inline-block" : "none";
+            Object.assign(markReadBtn.style, {
+                background: "#4285f4",
+                color: "white",
+                border: "none"
+            });
+        }
+        if (archiveBtn) {
+            archiveBtn.style.display = currentMode === MODES.ARCHIVE ? "inline-block" : "none";
+            Object.assign(archiveBtn.style, {
+                background: "#34a853",
+                color: "white",
+                border: "none"
+            });
+        }
+        if (dropdown) {
+            const label = dropdown.querySelector("span");
+            if (label) {
+                label.textContent = currentMode === MODES.ARCHIVE ? "Archive" : "Read";
+            }
+        }
+    }
+
+    function createButton(id, label, onClick) {
+        const btn = document.createElement("button");
         btn.type = "button";
         btn.id = id;
         btn.textContent = label;
 
-        btn.style.marginRight = "0.5em";
-        btn.style.cursor = "pointer";
-        btn.style.padding = "0.35em 0.6em";
-        btn.style.borderRadius = "0.5em";
-        btn.style.border = "1px solid rgba(0,0,0,0.2)";
-        btn.style.background = "rgba(255,255,255,0.9)";
+        Object.assign(btn.style, {
+            marginRight: "0.5em",
+            cursor: "pointer",
+            padding: "0.35em 0.6em",
+            borderRadius: "0.5em",
+            border: "1px solid rgba(0,0,0,0.2)",
+            background: "rgba(255,255,255,0.9)"
+        });
 
-        btn.addEventListener("click", function (e) {
+        btn.addEventListener("click", (e) => {
             e.preventDefault();
             e.stopPropagation();
             onClick();
@@ -326,42 +319,149 @@
         return btn;
     }
 
-    function ensureToolbarUI() {
-        //if new buttons already exist -> return
-        if (document.getElementById(UI.rootId)) return;
+    function createModeDropdown() {
+        const container = document.createElement("div");
+        container.id = UI_IDS.modeDropdown;
 
-        var toolbar = findToolbar();
+        Object.assign(container.style, {
+            position: "relative",
+            display: "inline-block",
+            marginLeft: "0.5em"
+        });
+
+        // Button that looks like "Search sender"
+        const button = document.createElement("button");
+        button.type = "button";
+
+        Object.assign(button.style, {
+            cursor: "pointer",
+            padding: "0.35em 0.6em",
+            borderRadius: "0.5em",
+            border: "1px solid rgba(0,0,0,0.2)",
+            background: "rgba(255,255,255,0.9)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.4em"
+        });
+
+        const label = document.createElement("span");
+        label.textContent = currentMode === MODES.ARCHIVE ? "Archive" : "Read";
+
+        const arrow = document.createElement("span");
+        arrow.textContent = "▼";
+        arrow.style.fontSize = "0.7em";
+
+        button.appendChild(label);
+        button.appendChild(arrow);
+
+        // Dropdown menu
+        const menu = document.createElement("div");
+        Object.assign(menu.style, {
+            position: "absolute",
+            top: "100%",
+            left: "0",
+            marginTop: "2px",
+            background: "white",
+            border: "1px solid rgba(0,0,0,0.2)",
+            borderRadius: "0.5em",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+            zIndex: "10000",
+            display: "none",
+            minWidth: "100%"
+        });
+
+        const createOption = (mode, text) => {
+            const option = document.createElement("div");
+            option.textContent = text;
+            Object.assign(option.style, {
+                padding: "0.4em 0.8em",
+                cursor: "pointer",
+                whiteSpace: "nowrap"
+            });
+            option.addEventListener("mouseenter", () => {
+                option.style.background = "#f1f3f4";
+            });
+            option.addEventListener("mouseleave", () => {
+                option.style.background = "transparent";
+            });
+            option.addEventListener("click", (e) => {
+                e.stopPropagation();
+                setMode(mode);
+                label.textContent = text;
+                menu.style.display = "none";
+            });
+            return option;
+        };
+
+        menu.appendChild(createOption(MODES.ARCHIVE, "Archive"));
+        menu.appendChild(createOption(MODES.READ, "Read"));
+
+        button.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            menu.style.display = menu.style.display === "none" ? "block" : "none";
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener("click", () => {
+            menu.style.display = "none";
+        });
+
+        container.appendChild(button);
+        container.appendChild(menu);
+
+        return container;
+    }
+
+    function createButtonsContainer() {
+        const root = document.createElement("div");
+        root.id = UI_IDS.buttonsRoot;
+
+        Object.assign(root.style, {
+            zIndex: "9999",
+            display: "inline-flex",
+            alignItems: "center"
+        });
+
+        // Order: Search sender, Action button (Read/Archive), Mode dropdown
+        root.appendChild(createButton(UI_IDS.btnSearchSender, "Search sender", searchBySender));
+        root.appendChild(createButton(UI_IDS.btnMarkReadPage, "Mark read (page)", markPageAsReadAndGoBack));
+        root.appendChild(createButton(UI_IDS.btnArchivePage, "Archive (page)", archivePageAndGoBack));
+        root.appendChild(createModeDropdown());
+
+        return root;
+    }
+
+    function ensureToolbarUI() {
+        const toolbar = getToolbar();
         if (!toolbar) return;
 
-        var container = findToolbarContainer(toolbar);
-        if (!container) return;
+        const targetContainer = getToolbarButtonContainer(toolbar);
+        if (!targetContainer) return;
 
-        var root = document.createElement("div");
-        root.id = UI.rootId;
-        root.style.zIndex = "9999";
-        root.style.display = "inline-flex";
-        root.style.alignItems = "center";
+        const existingRoot = document.getElementById(UI_IDS.buttonsRoot);
 
-        root.appendChild(createToolbarButton(UI.btnSearchSenderId, "Search sender", searchByOpenedEmailSender));
-        root.appendChild(createToolbarButton(UI.btnMarkReadId, "Mark read (page)", markSelectedMessagesOnPageAsReadAndGoBack));
-        root.appendChild(createToolbarButton(UI.btnArchiveId, "Archive (page)", archiveSelectedMessagesOnPageAndGoBack));
+        if (existingRoot) {
+            if (existingRoot.parentElement !== targetContainer) {
+                targetContainer.appendChild(existingRoot);
+            }
+            return;
+        }
 
-        container.appendChild(root);
+        targetContainer.appendChild(createButtonsContainer());
+        updateButtonVisibility();
     }
 
     // ----------------------------
-    // Bootstrap (MutationObserver > setInterval)
+    // Bootstrap
     // ----------------------------
 
-    function start() {
+    function init() {
         ensureToolbarUI();
 
-        var observer = new MutationObserver(function () {
-            ensureToolbarUI();
-        });
-
+        const observer = new MutationObserver(() => ensureToolbarUI());
         observer.observe(document.documentElement, { childList: true, subtree: true });
     }
 
-    start();
+    init();
 })();
