@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         Gmail: Search Sender + Mark Read / Archive
-// @namespace    https://latinsud.com/
-// @supportURL   https://github.com/LatinSuD/gmail-search-by-sender/
-// @version      1.8.0
-// @description  Adds toolbar buttons: search by sender of opened email, mark current page as read, archive current page.
-// @author       LatinSuD (refactor)
+// @namespace    https://github.com/Dattenberger/TampermonkeyScripts
+// @version      1.9.0
+// @description  Fügt Toolbar-Buttons hinzu: Suche nach Absender, Seite als gelesen markieren, Seite archivieren
+// @author       Lukas Dattenberger
 // @match        https://mail.google.com/mail/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=google.com
+// @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/gmail-search-by-sender.user.js
+// @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/gmail-search-by-sender.user.js
 // @grant        none
 // ==/UserScript==
 
@@ -295,11 +296,12 @@
         }
     }
 
-    function createButton(id, label, onClick) {
+    function createButton(id, label, onClick, tooltip) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.id = id;
         btn.textContent = label;
+        btn.title = tooltip;
 
         Object.assign(btn.style, {
             marginRight: "0.5em",
@@ -332,6 +334,7 @@
         // Button that looks like "Search sender"
         const button = document.createElement("button");
         button.type = "button";
+        button.title = "Modus wechseln: Archive (sucht in:inbox) oder Read (sucht is:unread)";
 
         Object.assign(button.style, {
             cursor: "pointer",
@@ -424,9 +427,24 @@
         });
 
         // Order: Search sender, Action button (Read/Archive), Mode dropdown
-        root.appendChild(createButton(UI_IDS.btnSearchSender, "Search sender", searchBySender));
-        root.appendChild(createButton(UI_IDS.btnMarkReadPage, "Mark read (page)", markPageAsReadAndGoBack));
-        root.appendChild(createButton(UI_IDS.btnArchivePage, "Archive (page)", archivePageAndGoBack));
+        root.appendChild(createButton(
+            UI_IDS.btnSearchSender,
+            "Search sender",
+            searchBySender,
+            "Sucht alle E-Mails vom Absender der aktuell geöffneten E-Mail (im Archive-Modus: in:inbox, im Read-Modus: is:unread)"
+        ));
+        root.appendChild(createButton(
+            UI_IDS.btnMarkReadPage,
+            "Mark read (page)",
+            markPageAsReadAndGoBack,
+            "Wählt alle E-Mails auf dieser Seite aus, markiert sie als gelesen und navigiert zurück"
+        ));
+        root.appendChild(createButton(
+            UI_IDS.btnArchivePage,
+            "Archive (page)",
+            archivePageAndGoBack,
+            "Wählt alle E-Mails auf dieser Seite aus, archiviert sie und navigiert zurück"
+        ));
         root.appendChild(createModeDropdown());
 
         return root;
