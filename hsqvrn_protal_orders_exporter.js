@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.4.6
+// @version      2.4.7
 // @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status (Refactored)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
 // @grant        GM_addStyle
+// @grant        GM_xmlhttpRequest
+// @connect      portal.husqvarnagroup.com
 // @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/hsqvrn_protal_orders_exporter.js
 // @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/hsqvrn_protal_orders_exporter.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js
@@ -466,6 +468,43 @@
     };
 
     // ============================================================================
+    // GM_XMLHTTPREQUEST WRAPPER
+    // ============================================================================
+
+    /**
+     * Wrapper für GM_xmlhttpRequest als Promise
+     * Ermöglicht Cross-Origin-Requests mit korrektem Cookie-Handling im Sandbox-Modus
+     */
+    function gmFetch(url, options = {}) {
+        return new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+                method: options.method || 'GET',
+                url: url,
+                headers: options.headers || {},
+                data: options.body,
+                responseType: 'json',
+                onload: function(response) {
+                    if (response.status >= 200 && response.status < 300) {
+                        resolve({
+                            ok: true,
+                            status: response.status,
+                            json: () => Promise.resolve(response.response)
+                        });
+                    } else {
+                        reject(new Error(`HTTP ${response.status}`));
+                    }
+                },
+                onerror: function(error) {
+                    reject(new Error('Network error'));
+                },
+                ontimeout: function() {
+                    reject(new Error('Request timeout'));
+                }
+            });
+        });
+    }
+
+    // ============================================================================
     // STATE MANAGEMENT
     // ============================================================================
 
@@ -785,9 +824,8 @@
                 operationName: 'getDetailedClosedOrder'
             };
 
-            const res = await fetch('https://portal.husqvarnagroup.com/hbd/graphql?', {
+            const res = await gmFetch('https://portal.husqvarnagroup.com/hbd/graphql?', {
                 method: 'POST',
-                credentials: 'same-origin',
                 headers: {'content-type': 'application/json'},
                 body: JSON.stringify(body)
             });
