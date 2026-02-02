@@ -7,16 +7,20 @@
     "dev": "vite",
     "build": "tsx build.ts",
     "build:husqvarna": "cross-env SCRIPT=husqvarna-skripte vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/jquery": "^3.5.33",
     "@types/node": "^25.2.0",
     "cross-env": "^7.0.3",
+    "jsdom": "^28.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vite": "^5.0.0",
-    "vite-plugin-monkey": "^4.0.0"
+    "vite-plugin-monkey": "^4.0.0",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "jquery": "^4.0.0"

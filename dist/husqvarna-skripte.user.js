@@ -282,7 +282,7 @@
         </div>
         <div class="datte-confirm-actions">
           <button class="datte-confirm-btn datte-confirm-btn-cancel">Abbrechen</button>
-          <button class="datte-confirm-btn datte-confirm-btn-ok">OK - Herunterladen</button>
+          <button class="datte-confirm-btn datte-confirm-btn-ok">${ICONS.enter} OK - Herunterladen</button>
         </div>
       </div>
     `;

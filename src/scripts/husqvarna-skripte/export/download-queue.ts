@@ -1,4 +1,4 @@
-import { ICONS, getStatusIcon } from '@lib/ui';
+import { ICONS } from '@lib/ui';
 import { sanitizeFilename } from '@lib/utils';
 import { generateCsv, downloadCsvBlob } from '@lib/csv';
 import { Config } from '../config';
