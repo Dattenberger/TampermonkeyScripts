@@ -4,6 +4,8 @@ import { Config } from './config';
 import { isOrderListPage } from './dom/extract';
 import { attachExportButtonToNewLayout, attachExportButtonToOldModal, attachExportButtonsToOrderList } from './ui/export-buttons';
 import { setupCustomOrderInputObserver } from './ui/custom-order-input';
+import { createModeToggle } from './ui/mode-toggle';
+import { createDownloadAllBar } from './ui/download-all-bar';
 
 
 applyStyles();
@@ -14,7 +16,14 @@ function initializeScript(): void {
   const handleDOMChanges = debounce(() => {
     if (document.querySelector('[data-testid="order-detail-page"]')) attachExportButtonToNewLayout();
     if (document.querySelector('div#ui-modal-target article header')) attachExportButtonToOldModal();
-    if (isOrderListPage()) attachExportButtonsToOrderList();
+    if (isOrderListPage()) {
+      const orderListPage = document.querySelector('[data-testid="order-list-page"]');
+      if (orderListPage) {
+        createModeToggle(orderListPage);
+        createDownloadAllBar(orderListPage);
+      }
+      attachExportButtonsToOrderList();
+    }
   }, Config.timing.DEBOUNCE_DELAY);
 
   handleDOMChanges();

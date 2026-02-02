@@ -174,6 +174,44 @@
     .datte-download-status-number { font-family: monospace; font-weight: 600; }
     .datte-download-status-icon { flex-shrink: 0; display: flex; align-items: center; }
   `,
+    modeToggle: `
+    .datte-mode-toggle { display: inline-flex; border: 1px solid #3d3d3c; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+    .datte-mode-btn { padding: 8px 20px; font-family: "Husqvarna Gothic", Arial, sans-serif; font-size: 13px; text-transform: uppercase; cursor: pointer; border: none; background: white; color: #3d3d3c; transition: all 0.2s ease; }
+    .datte-mode-btn.active { background: #3d3d3c; color: white; }
+    .datte-mode-btn:hover:not(.active) { background: #f5f5f5; }
+  `,
+    addButton: `
+    a.add-btn { display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; text-decoration: none; margin-left: 12px; border-radius: 8px; padding: 12px 24px; border: 1px solid #3d3d3c; font-family: "Husqvarna Gothic", Arial, sans-serif; line-height: 16px; font-size: 14px; text-transform: uppercase; transition: all 0.2s ease; }
+    a.add-btn.selected { background-color: #28a745; border-color: #28a745; color: white; }
+    a.add-btn:hover:not(.selected) { background: #f5f5f5; }
+  `,
+    downloadAllBar: `
+    .datte-download-all-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; margin-top: 12px; background: #f0f0f0; border-radius: 8px; border: 1px solid #e0e0e0; font-family: "Husqvarna Gothic", Arial, sans-serif; }
+    .datte-download-all-count { font-size: 14px; font-weight: 600; color: #3d3d3c; }
+    .datte-download-all-actions { display: flex; gap: 12px; }
+  `,
+    mergedModal: `
+    .datte-merged-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000; animation: fadeIn 0.2s ease; }
+    .datte-merged-dialog { background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); width: 700px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column; animation: slideIn 0.2s ease; }
+    .datte-merged-header { padding: 20px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
+    .datte-merged-close-btn { background: none; border: none; cursor: pointer; padding: 4px; border-radius: 4px; color: #666; transition: color 0.2s; }
+    .datte-merged-close-btn:hover { color: #333; }
+    .datte-merged-title { font-family: "Husqvarna Gothic", Arial, sans-serif; font-size: 18px; font-weight: 600; color: #3d3d3c; }
+    .datte-merged-body { padding: 20px; overflow-y: auto; flex: 1; }
+    .datte-merged-table { width: 100%; border-collapse: collapse; font-family: "Husqvarna Gothic", Arial, sans-serif; font-size: 13px; }
+    .datte-merged-table th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #3d3d3c; font-weight: 600; text-transform: uppercase; font-size: 12px; color: #666; }
+    .datte-merged-table td { padding: 8px 12px; border-bottom: 1px solid #e0e0e0; vertical-align: middle; }
+    .datte-merged-table input { width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-family: "Husqvarna Gothic", Arial, sans-serif; font-size: 13px; }
+    .datte-merged-table input:focus { outline: none; border-color: #3d3d3c; }
+    .datte-merged-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+    .datte-merged-status.status-pending { background: #fff3cd; color: #856404; }
+    .datte-merged-status.status-loading { background: #6f6f6f; color: white; }
+    .datte-merged-status.status-success { background: #28a745; color: white; }
+    .datte-merged-status.status-error { background: #dc3545; color: white; }
+    .datte-merged-footer { padding: 15px 20px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
+    .datte-merged-warning { padding: 12px 16px; margin-bottom: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; font-family: "Husqvarna Gothic", Arial, sans-serif; font-size: 13px; color: #856404; }
+    .datte-merged-warning-actions { display: flex; gap: 12px; margin-top: 10px; }
+  `,
     animations: `
     .loading-spinner { animation: spin 1s linear infinite; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -195,7 +233,9 @@
     },
     download: {
       MAX_RETRY_ATTEMPTS: 5,
-      MAX_CONCURRENT_DOWNLOADS: 2
+      MAX_CONCURRENT_DOWNLOADS: 2,
+      MAX_RETRY_FULL: 3,
+      MAX_RETRY_TOTAL: 6
     },
     ui: {
       LOADING_TEXT: "Exportiere..."
@@ -247,7 +287,9 @@
     success14: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>',
     error14: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 6l12 12M6 18L18 6"/></svg>',
     enter: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="datte-enter-icon"><polyline points="9 10 4 15 9 20" /><path d="M20 4v7a4 4 0 0 1-4 4H4" /></svg>',
-    close: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/></svg>'
+    close: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/></svg>',
+    plus: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg>',
+    check: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>'
   };
   function getStatusIcon(status) {
     switch (status) {
@@ -398,6 +440,33 @@
       }
     }
   }`;
+  const GQL_QUERY_LITE = `
+  query getDetailedClosedOrder($siteName: String!, $orderNumber: ID!) {
+    site(name: $siteName) {
+      commerce {
+        orders {
+          get(orderId: $orderNumber) {
+            customerOrderNumber
+            orderNumber
+            orderLines {
+              ecomArticleDescription
+              customerOrderLineReference
+              requestedQuantity
+              requestedDispatchDate
+              unformattedArticleNumber
+              totalGrossPrice
+              totalNetPrice
+              article {
+                id
+                name
+                articleDescription
+              }
+            }
+          }
+        }
+      }
+    }
+  }`;
   function shouldRetryError(error) {
     const message = error.message || "";
     if (error.name === "NetworkError" || message.includes("Failed to fetch")) return true;
@@ -418,7 +487,7 @@
     if (error.message.includes("500") || error.message.includes("502") || error.message.includes("503")) return ctx + "Server-Fehler - bitte später erneut versuchen";
     return ctx + `Export fehlgeschlagen: ${error.message || "Unbekannter Fehler"}`;
   }
-  async function fetchOrderViaGraphQL(orderNumber, siteName, retryAttempt = 1) {
+  async function fetchOrderViaGraphQL(orderNumber, siteName, retryAttempt = 1, skipDeliveryLines = false) {
     var _a, _b, _c, _d;
     if (!validateOrderNumber(orderNumber)) {
       throw new Error("Ungültige Bestellnummer");
@@ -435,7 +504,7 @@
     State.activeDownloads.add(orderNumber);
     try {
       const body = {
-        query: GQL_QUERY,
+        query: skipDeliveryLines ? GQL_QUERY_LITE : GQL_QUERY,
         variables: { siteName, orderNumber },
         operationName: "getDetailedClosedOrder"
       };
@@ -641,6 +710,336 @@
       }
     };
   }
+  const MergedState = {
+    mode: "single",
+    selectedOrders: /* @__PURE__ */ new Map(),
+    isDownloading: false,
+    modalOpen: false
+  };
+  function createMergedOrderEntry(orderNumber) {
+    return {
+      orderNumber,
+      status: "pending",
+      retryAttempt: 0,
+      customerOrderNumber: "",
+      userOverrideOrderNumber: "",
+      orderData: null,
+      errorMessage: "",
+      usedLiteQuery: false
+    };
+  }
+  const MAX_CONCURRENT = Config.download.MAX_CONCURRENT_DOWNLOADS;
+  const MAX_RETRY_FULL = Config.download.MAX_RETRY_FULL;
+  const MAX_RETRY_TOTAL = Config.download.MAX_RETRY_TOTAL;
+  async function startMergedDownloads(onStatusChange) {
+    if (MergedState.isDownloading) return;
+    MergedState.isDownloading = true;
+    const siteName = extractSiteName();
+    const entries = Array.from(MergedState.selectedOrders.values()).filter((e) => e.status !== "success");
+    const queue = [...entries];
+    const active = [];
+    const processNext = async () => {
+      while (queue.length > 0) {
+        const entry = queue.shift();
+        await downloadSingleOrder(entry, siteName, onStatusChange);
+      }
+    };
+    for (let i = 0; i < Math.min(MAX_CONCURRENT, queue.length); i++) {
+      active.push(processNext());
+    }
+    await Promise.all(active);
+    MergedState.isDownloading = false;
+  }
+  async function downloadSingleOrder(entry, siteName, onStatusChange) {
+    entry.status = "loading";
+    entry.retryAttempt = 1;
+    onStatusChange(entry.orderNumber, entry);
+    for (let attempt = 1; attempt <= MAX_RETRY_TOTAL; attempt++) {
+      entry.retryAttempt = attempt;
+      entry.status = "loading";
+      onStatusChange(entry.orderNumber, entry);
+      const skipDeliveryLines = attempt > MAX_RETRY_FULL;
+      try {
+        const order = await fetchOrderViaGraphQL(entry.orderNumber, siteName, attempt, skipDeliveryLines);
+        if (skipDeliveryLines && order.orderLines) {
+          const todayISO = (/* @__PURE__ */ new Date()).toISOString();
+          for (const line of order.orderLines) {
+            if (!line.deliveryLines || line.deliveryLines.length === 0) {
+              line.deliveryLines = [{
+                deliveryQuantity: line.requestedQuantity,
+                promisedDispatchDate: todayISO,
+                shipmentInfos: []
+              }];
+            }
+          }
+          entry.usedLiteQuery = true;
+        }
+        entry.orderData = order;
+        entry.customerOrderNumber = order.customerOrderNumber || "";
+        if (!entry.userOverrideOrderNumber) {
+          entry.userOverrideOrderNumber = entry.customerOrderNumber;
+        }
+        entry.status = "success";
+        entry.errorMessage = "";
+        onStatusChange(entry.orderNumber, entry);
+        return;
+      } catch (error) {
+        const err = error;
+        entry.errorMessage = err.message || "Unbekannter Fehler";
+        const isRetryable = shouldRetryError(err);
+        if (!isRetryable || attempt >= MAX_RETRY_TOTAL) {
+          entry.status = "error";
+          onStatusChange(entry.orderNumber, entry);
+          return;
+        }
+        const delay = Config.timing.RETRY_DELAY_BASE * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+  function exportMergedCsv() {
+    const allRows = [];
+    const skippedOrders = [];
+    let exported = 0;
+    for (const entry of MergedState.selectedOrders.values()) {
+      if (entry.status !== "success" || !entry.orderData) {
+        skippedOrders.push(entry.orderNumber);
+        continue;
+      }
+      const order = entry.orderData;
+      const internalNumber = entry.userOverrideOrderNumber.trim() || entry.customerOrderNumber || entry.orderNumber;
+      const outerNumber = order.orderNumber || entry.orderNumber;
+      const rows = (order.orderLines || []).map(mapGraphQLToRow);
+      const csvRows = prepareCsvDataToExport(rows, internalNumber, outerNumber);
+      allRows.push(...csvRows);
+      exported++;
+    }
+    if (allRows.length > 0) {
+      const csv = generateCsv(allRows);
+      const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      downloadCsvBlob(csv, `Sammelexport_${today}.csv`);
+    }
+    return { exported, skipped: skippedOrders.length, skippedOrders };
+  }
+  function getFailedOrPendingOrders() {
+    const result = [];
+    for (const entry of MergedState.selectedOrders.values()) {
+      if (entry.status !== "success") result.push(entry.orderNumber);
+    }
+    return result;
+  }
+  function openMergedDownloadModal() {
+    if (MergedState.modalOpen) return;
+    MergedState.modalOpen = true;
+    const entries = Array.from(MergedState.selectedOrders.values());
+    const modal = document.createElement("div");
+    modal.className = "datte-merged-modal";
+    modal.innerHTML = `
+    <div class="datte-merged-dialog">
+      <div class="datte-merged-header">
+        <span class="datte-merged-title">Sammel-Export (${entries.length} Bestellungen)</span>
+        <button class="datte-merged-close-btn" title="Schließen">${ICONS.error}</button>
+      </div>
+      <div class="datte-merged-body">
+        <div id="datte-merged-warning" class="datte-merged-warning" style="display:none;"></div>
+        <table class="datte-merged-table">
+          <thead>
+            <tr>
+              <th>Auftragsnr.</th>
+              <th>Interne Bestellnr.</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="datte-merged-tbody">
+            ${entries.map((e) => renderRow(e)).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div class="datte-merged-footer">
+        <button class="datte-confirm-btn datte-confirm-btn-cancel" id="datte-merged-close">Schließen</button>
+        <div style="display:flex;gap:12px;">
+          <button class="datte-confirm-btn datte-confirm-btn-ok" id="datte-merged-csv-export" style="background:#2563eb;border-color:#2563eb;">CSV-Export</button>
+          <button class="datte-confirm-btn datte-confirm-btn-ok" id="datte-merged-start">Download starten</button>
+        </div>
+      </div>
+    </div>
+  `;
+    document.body.appendChild(modal);
+    entries.forEach((entry) => {
+      const input = document.getElementById(`datte-merged-input-${entry.orderNumber}`);
+      if (input) {
+        input.addEventListener("input", () => {
+          entry.userOverrideOrderNumber = input.value;
+        });
+      }
+    });
+    const closeModal = () => {
+      if (MergedState.isDownloading) {
+        if (!confirm("Downloads laufen noch. Wirklich schließen?")) return;
+      }
+      document.removeEventListener("keydown", handleKey);
+      modal.remove();
+      MergedState.modalOpen = false;
+    };
+    modal.querySelector(".datte-merged-close-btn").addEventListener("click", closeModal);
+    document.getElementById("datte-merged-close").addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeModal();
+    });
+    const handleKey = (e) => {
+      if (e.key === "Escape") {
+        closeModal();
+        document.removeEventListener("keydown", handleKey);
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    document.getElementById("datte-merged-start").addEventListener("click", async () => {
+      const startBtn = document.getElementById("datte-merged-start");
+      startBtn.disabled = true;
+      startBtn.textContent = "Downloads laufen...";
+      await startMergedDownloads((orderNumber, entry) => {
+        updateModalRow(orderNumber, entry);
+      });
+      startBtn.textContent = "Download starten";
+      startBtn.disabled = false;
+    });
+    document.getElementById("datte-merged-csv-export").addEventListener("click", () => {
+      const failedOrders = getFailedOrPendingOrders();
+      const warningEl = document.getElementById("datte-merged-warning");
+      if (failedOrders.length > 0) {
+        warningEl.style.display = "block";
+        warningEl.innerHTML = `
+        <strong>⚠ Nicht alle Bestellungen wurden heruntergeladen.</strong><br>
+        Folgende fehlen: <strong>${failedOrders.join(", ")}</strong><br>
+        <div class="datte-merged-warning-actions">
+          <button class="datte-confirm-btn datte-confirm-btn-cancel" id="datte-merged-warning-cancel">Abbrechen</button>
+          <button class="datte-confirm-btn datte-confirm-btn-ok" id="datte-merged-warning-confirm" style="background:#e67e22;border-color:#e67e22;">Trotzdem exportieren</button>
+        </div>
+      `;
+        document.getElementById("datte-merged-warning-cancel").addEventListener("click", () => {
+          warningEl.style.display = "none";
+        });
+        document.getElementById("datte-merged-warning-confirm").addEventListener("click", () => {
+          warningEl.style.display = "none";
+          exportMergedCsv();
+        });
+      } else {
+        exportMergedCsv();
+      }
+    });
+  }
+  function renderRow(entry) {
+    const statusClass = `status-${entry.status}`;
+    const statusText = getStatusText(entry);
+    const icon = getStatusIcon(entry.status);
+    return `
+    <tr id="datte-merged-row-${entry.orderNumber}">
+      <td><strong>${entry.orderNumber}</strong></td>
+      <td><input type="text" id="datte-merged-input-${entry.orderNumber}"
+           value="${entry.userOverrideOrderNumber}"
+           placeholder="Wird nach Download gefüllt"></td>
+      <td><span class="datte-merged-status ${statusClass}">
+        <span class="datte-merged-status-icon">${icon}</span>
+        <span class="datte-merged-status-text">${statusText}</span>
+      </span></td>
+    </tr>
+  `;
+  }
+  function updateModalRow(orderNumber, entry) {
+    const row = document.getElementById(`datte-merged-row-${orderNumber}`);
+    if (!row) return;
+    const statusSpan = row.querySelector(".datte-merged-status");
+    if (statusSpan) {
+      statusSpan.className = `datte-merged-status status-${entry.status}`;
+      const iconEl = statusSpan.querySelector(".datte-merged-status-icon");
+      const textEl = statusSpan.querySelector(".datte-merged-status-text");
+      if (iconEl) iconEl.innerHTML = getStatusIcon(entry.status);
+      if (textEl) textEl.textContent = getStatusText(entry);
+    }
+    const input = document.getElementById(`datte-merged-input-${orderNumber}`);
+    if (input && entry.status === "success" && !input.value) {
+      input.value = entry.userOverrideOrderNumber || entry.customerOrderNumber;
+    }
+  }
+  function getStatusText(entry) {
+    switch (entry.status) {
+      case "pending":
+        return "Ausstehend";
+      case "loading":
+        return entry.retryAttempt > 1 ? `Lade... (${entry.retryAttempt}/6)` : "Lade...";
+      case "success":
+        return entry.usedLiteQuery ? "Erfolgreich (ohne Lieferzeiten)" : "Erfolgreich";
+      case "error":
+        return `Fehler (${entry.retryAttempt}/6)`;
+      default:
+        return "";
+    }
+  }
+  let barElement = null;
+  function createDownloadAllBar(container) {
+    if (document.getElementById("datte-download-all-bar")) return;
+    const bar = document.createElement("div");
+    bar.id = "datte-download-all-bar";
+    bar.className = "datte-download-all-bar";
+    bar.style.display = MergedState.mode === "merged" ? "flex" : "none";
+    bar.innerHTML = `
+    <span class="datte-download-all-count" id="datte-download-all-count">
+      0 Bestellungen ausgewählt
+    </span>
+    <div class="datte-download-all-actions">
+      <button class="datte-confirm-btn datte-confirm-btn-cancel" id="datte-clear-selection">
+        Auswahl leeren
+      </button>
+      <button class="datte-confirm-btn datte-confirm-btn-ok" id="datte-download-all-btn" disabled>
+        Download All
+      </button>
+    </div>
+  `;
+    const modeToggle = container.querySelector(".datte-mode-toggle");
+    if (modeToggle && modeToggle.nextSibling) {
+      container.insertBefore(bar, modeToggle.nextSibling);
+    } else {
+      container.appendChild(bar);
+    }
+    barElement = bar;
+    document.getElementById("datte-clear-selection").addEventListener("click", () => {
+      MergedState.selectedOrders.clear();
+      updateDownloadAllBar();
+      document.querySelectorAll(".add-btn.selected").forEach((btn) => {
+        btn.classList.remove("selected");
+        const icon = btn.querySelector(".add-icon");
+        const text = btn.querySelector(".add-text");
+        if (icon) icon.innerHTML = getPlusIcon();
+        if (text) text.textContent = "Hinzufügen";
+      });
+    });
+    document.getElementById("datte-download-all-btn").addEventListener("click", () => {
+      if (MergedState.selectedOrders.size === 0) return;
+      openMergedDownloadModal();
+    });
+  }
+  function updateDownloadAllBar() {
+    const count = MergedState.selectedOrders.size;
+    const countEl = document.getElementById("datte-download-all-count");
+    if (countEl) {
+      countEl.textContent = `${count} Bestellung${count !== 1 ? "en" : ""} ausgewählt`;
+    }
+    const btn = document.getElementById("datte-download-all-btn");
+    if (btn) {
+      btn.disabled = count === 0;
+    }
+  }
+  function showDownloadAllBar() {
+    const bar = barElement || document.getElementById("datte-download-all-bar");
+    if (bar) bar.style.display = "flex";
+  }
+  function hideDownloadAllBar() {
+    const bar = barElement || document.getElementById("datte-download-all-bar");
+    if (bar) bar.style.display = "none";
+  }
+  function getPlusIcon() {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14"/></svg>';
+  }
   function attachExportButtonToNewLayout() {
     const $page = $('[data-testid="order-detail-page"]').first();
     if (!$page.length) return;
@@ -682,24 +1081,60 @@
     if (!table) return;
     const rows = table.querySelectorAll('div[role="row"]:not(.b2b-tm)');
     rows.forEach((row) => {
-      if (row.querySelector(".export-btn")) return;
       const detailLink = row.querySelector('a[data-testid="view-order-details-link"]');
       if (!detailLink) return;
       const orderNumber = extractOrderIdFromHref(detailLink.href);
       if (!orderNumber || !validateOrderNumber(orderNumber)) return;
-      const filename = sanitizeFilename(orderNumber);
       const arrowCell = row.querySelector('div[role="cell"]:last-child');
       if (!arrowCell) return;
-      const $downloadBtn = $(`
-      <a class="export-btn" data-variant="secondary" data-size="compact" download="${filename}"
-         title="CSV Export für Bestellung ${orderNumber}" style="margin-left: 12px;">
-        <span class="export-icon" aria-hidden="true">${ICONS.download}</span>
-        <span style="width: max-content" class="export-text">JTL Export</span>
-      </a>
-    `);
-      $downloadBtn.on("click", createExportHandler(".export-icon", ".export-text", orderNumber, filename, $downloadBtn));
-      $(arrowCell).append($downloadBtn);
+      if (MergedState.mode === "merged") {
+        if (row.querySelector(".add-btn")) return;
+        renderAddButton(arrowCell, orderNumber);
+      } else {
+        if (row.querySelector(".export-btn")) return;
+        const filename = sanitizeFilename(orderNumber);
+        const $downloadBtn = $(`
+        <a class="export-btn" data-variant="secondary" data-size="compact" download="${filename}"
+           title="CSV Export für Bestellung ${orderNumber}" style="margin-left: 12px;">
+          <span class="export-icon" aria-hidden="true">${ICONS.download}</span>
+          <span style="width: max-content" class="export-text">JTL Export</span>
+        </a>
+      `);
+        $downloadBtn.on("click", createExportHandler(".export-icon", ".export-text", orderNumber, filename, $downloadBtn));
+        $(arrowCell).append($downloadBtn);
+      }
     });
+  }
+  function replaceAllRowButtons() {
+    const table = document.querySelector('[data-testid="order-list-page"] div[role="table"]');
+    if (!table) return;
+    table.querySelectorAll(".export-btn, .add-btn").forEach((btn) => btn.remove());
+    attachExportButtonsToOrderList();
+  }
+  function renderAddButton(arrowCell, orderNumber) {
+    const isSelected = MergedState.selectedOrders.has(orderNumber);
+    const btn = document.createElement("a");
+    btn.className = `add-btn${isSelected ? " selected" : ""}`;
+    btn.innerHTML = `
+    <span class="add-icon" aria-hidden="true">${isSelected ? ICONS.check : ICONS.plus}</span>
+    <span class="add-text">${isSelected ? "Hinzugefügt" : "Hinzufügen"}</span>
+  `;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (MergedState.selectedOrders.has(orderNumber)) {
+        MergedState.selectedOrders.delete(orderNumber);
+        btn.classList.remove("selected");
+        btn.querySelector(".add-icon").innerHTML = ICONS.plus;
+        btn.querySelector(".add-text").textContent = "Hinzufügen";
+      } else {
+        MergedState.selectedOrders.set(orderNumber, createMergedOrderEntry(orderNumber));
+        btn.classList.add("selected");
+        btn.querySelector(".add-icon").innerHTML = ICONS.check;
+        btn.querySelector(".add-text").textContent = "Hinzugefügt";
+      }
+      updateDownloadAllBar();
+    });
+    arrowCell.appendChild(btn);
   }
   function createCustomOrderInputUI(orderListPage) {
     console.log("[CustomOrderInput] Creating custom order input UI");
@@ -766,6 +1201,35 @@
       const parsed = validateInput();
       if (!parsed || parsed.valid.length === 0) return;
       const orderNumbers = parsed.valid;
+      if (MergedState.mode === "merged") {
+        orderNumbers.forEach((orderNumber) => {
+          if (!MergedState.selectedOrders.has(orderNumber)) {
+            MergedState.selectedOrders.set(orderNumber, createMergedOrderEntry(orderNumber));
+          }
+        });
+        updateDownloadAllBar();
+        document.querySelectorAll(".add-btn").forEach((btn) => {
+          const text = btn.querySelector(".add-text");
+          const icon = btn.querySelector(".add-icon");
+          if (!text || !icon) return;
+          const row = btn.closest('div[role="row"]');
+          if (!row) return;
+          const link = row.querySelector('a[data-testid="view-order-details-link"]');
+          if (!link) return;
+          const href = link.href;
+          const match = href.match(/\/orders\/(\d+)/);
+          if (match && MergedState.selectedOrders.has(match[1])) {
+            btn.classList.add("selected");
+            icon.innerHTML = ICONS.check;
+            text.textContent = "Hinzugefügt";
+          }
+        });
+        input.value = "";
+        input.classList.remove("error");
+        errorMsg.classList.remove("show");
+        input.focus();
+        return;
+      }
       if (orderNumbers.length > 1) {
         const confirmed = await showConfirmModal(orderNumbers, input);
         if (!confirmed) return;
@@ -832,13 +1296,46 @@
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
+  function createModeToggle(container) {
+    if (document.querySelector(".datte-mode-toggle")) return;
+    const toggle = document.createElement("div");
+    toggle.className = "datte-mode-toggle";
+    toggle.innerHTML = `
+    <button class="datte-mode-btn ${MergedState.mode === "single" ? "active" : ""}" data-mode="single">Einzelmodus</button>
+    <button class="datte-mode-btn ${MergedState.mode === "merged" ? "active" : ""}" data-mode="merged">Sammelmodus</button>
+  `;
+    container.insertBefore(toggle, container.firstChild);
+    toggle.addEventListener("click", (e) => {
+      const target = e.target;
+      const mode = target.dataset.mode;
+      if (!mode || mode === MergedState.mode) return;
+      MergedState.mode = mode;
+      toggle.querySelectorAll(".datte-mode-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.mode === mode);
+      });
+      replaceAllRowButtons();
+      if (mode === "merged") {
+        showDownloadAllBar();
+        updateDownloadAllBar();
+      } else {
+        hideDownloadAllBar();
+      }
+    });
+  }
   applyStyles();
   function initializeScript() {
     setupCustomOrderInputObserver();
     const handleDOMChanges = debounce(() => {
       if (document.querySelector('[data-testid="order-detail-page"]')) attachExportButtonToNewLayout();
       if (document.querySelector("div#ui-modal-target article header")) attachExportButtonToOldModal();
-      if (isOrderListPage()) attachExportButtonsToOrderList();
+      if (isOrderListPage()) {
+        const orderListPage = document.querySelector('[data-testid="order-list-page"]');
+        if (orderListPage) {
+          createModeToggle(orderListPage);
+          createDownloadAllBar(orderListPage);
+        }
+        attachExportButtonsToOrderList();
+      }
     }, Config.timing.DEBOUNCE_DELAY);
     handleDOMChanges();
     const mutationObserver = new MutationObserver((mutations) => {

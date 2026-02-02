@@ -6,6 +6,8 @@ import { State, QueueItem } from '../state';
 import { extractSiteName } from '../dom/extract';
 import { isMaxConcurrentDownloadsReached, enqueueDownload, startDownload } from '../export/download-queue';
 import { createStatusItem, clearAllStatusItems } from './status-display';
+import { MergedState, createMergedOrderEntry } from '../merged/merged-state';
+import { updateDownloadAllBar } from './download-all-bar';
 
 
 export function createCustomOrderInputUI(orderListPage: Element): void {
@@ -80,6 +82,39 @@ export function createCustomOrderInputUI(orderListPage: Element): void {
     if (!parsed || parsed.valid.length === 0) return;
 
     const orderNumbers = parsed.valid;
+
+    if (MergedState.mode === 'merged') {
+      orderNumbers.forEach(orderNumber => {
+        if (!MergedState.selectedOrders.has(orderNumber)) {
+          MergedState.selectedOrders.set(orderNumber, createMergedOrderEntry(orderNumber));
+        }
+      });
+      updateDownloadAllBar();
+      // Update any visible add-buttons
+      document.querySelectorAll('.add-btn').forEach(btn => {
+        const text = btn.querySelector('.add-text');
+        const icon = btn.querySelector('.add-icon');
+        if (!text || !icon) return;
+        // Check if this button's order is now selected
+        const row = btn.closest('div[role="row"]');
+        if (!row) return;
+        const link = row.querySelector('a[data-testid="view-order-details-link"]') as HTMLAnchorElement | null;
+        if (!link) return;
+        const href = link.href;
+        const match = href.match(/\/orders\/(\d+)/);
+        if (match && MergedState.selectedOrders.has(match[1])) {
+          btn.classList.add('selected');
+          icon.innerHTML = ICONS.check;
+          text.textContent = 'Hinzugefügt';
+        }
+      });
+      input.value = '';
+      input.classList.remove('error');
+      errorMsg.classList.remove('show');
+      input.focus();
+      return;
+    }
+
     if (orderNumbers.length > 1) {
       const confirmed = await showConfirmModal(orderNumbers, input);
       if (!confirmed) return;

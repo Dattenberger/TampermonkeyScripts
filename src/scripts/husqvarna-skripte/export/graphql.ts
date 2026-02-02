@@ -35,6 +35,34 @@ const GQL_QUERY = `
     }
   }`;
 
+const GQL_QUERY_LITE = `
+  query getDetailedClosedOrder($siteName: String!, $orderNumber: ID!) {
+    site(name: $siteName) {
+      commerce {
+        orders {
+          get(orderId: $orderNumber) {
+            customerOrderNumber
+            orderNumber
+            orderLines {
+              ecomArticleDescription
+              customerOrderLineReference
+              requestedQuantity
+              requestedDispatchDate
+              unformattedArticleNumber
+              totalGrossPrice
+              totalNetPrice
+              article {
+                id
+                name
+                articleDescription
+              }
+            }
+          }
+        }
+      }
+    }
+  }`;
+
 export function shouldRetryError(error: Error): boolean {
   const message = error.message || '';
   if (error.name === 'NetworkError' || message.includes('Failed to fetch')) return true;
@@ -57,7 +85,7 @@ export function handleExportError(error: Error, orderNumber: string): string {
   return ctx + `Export fehlgeschlagen: ${error.message || 'Unbekannter Fehler'}`;
 }
 
-export async function fetchOrderViaGraphQL(orderNumber: string, siteName: string, retryAttempt: number = 1): Promise<any> {
+export async function fetchOrderViaGraphQL(orderNumber: string, siteName: string, retryAttempt: number = 1, skipDeliveryLines: boolean = false): Promise<any> {
   if (!validateOrderNumber(orderNumber)) {
     throw new Error('Ungültige Bestellnummer');
   }
@@ -77,7 +105,7 @@ export async function fetchOrderViaGraphQL(orderNumber: string, siteName: string
 
   try {
     const body = {
-      query: GQL_QUERY,
+      query: skipDeliveryLines ? GQL_QUERY_LITE : GQL_QUERY,
       variables: { siteName, orderNumber },
       operationName: 'getDetailedClosedOrder',
     };

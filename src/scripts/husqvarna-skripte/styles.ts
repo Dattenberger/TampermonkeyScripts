@@ -75,6 +75,48 @@ const Styles = {
     .datte-download-status-icon { flex-shrink: 0; display: flex; align-items: center; }
   `,
 
+  modeToggle: `
+    .datte-mode-toggle { display: inline-flex; border: 1px solid #3d3d3c; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+    .datte-mode-btn { padding: 8px 20px; font-family: "Husqvarna Gothic", Arial, sans-serif; font-size: 13px; text-transform: uppercase; cursor: pointer; border: none; background: white; color: #3d3d3c; transition: all 0.2s ease; }
+    .datte-mode-btn.active { background: #3d3d3c; color: white; }
+    .datte-mode-btn:hover:not(.active) { background: #f5f5f5; }
+  `,
+
+  addButton: `
+    a.add-btn { display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; text-decoration: none; margin-left: 12px; border-radius: 8px; padding: 12px 24px; border: 1px solid #3d3d3c; font-family: "Husqvarna Gothic", Arial, sans-serif; line-height: 16px; font-size: 14px; text-transform: uppercase; transition: all 0.2s ease; }
+    a.add-btn.selected { background-color: #28a745; border-color: #28a745; color: white; }
+    a.add-btn:hover:not(.selected) { background: #f5f5f5; }
+  `,
+
+  downloadAllBar: `
+    .datte-download-all-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; margin-top: 12px; background: #f0f0f0; border-radius: 8px; border: 1px solid #e0e0e0; font-family: "Husqvarna Gothic", Arial, sans-serif; }
+    .datte-download-all-count { font-size: 14px; font-weight: 600; color: #3d3d3c; }
+    .datte-download-all-actions { display: flex; gap: 12px; }
+  `,
+
+  mergedModal: `
+    .datte-merged-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000; animation: fadeIn 0.2s ease; }
+    .datte-merged-dialog { background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); width: 700px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column; animation: slideIn 0.2s ease; }
+    .datte-merged-header { padding: 20px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
+    .datte-merged-close-btn { background: none; border: none; cursor: pointer; padding: 4px; border-radius: 4px; color: #666; transition: color 0.2s; }
+    .datte-merged-close-btn:hover { color: #333; }
+    .datte-merged-title { font-family: "Husqvarna Gothic", Arial, sans-serif; font-size: 18px; font-weight: 600; color: #3d3d3c; }
+    .datte-merged-body { padding: 20px; overflow-y: auto; flex: 1; }
+    .datte-merged-table { width: 100%; border-collapse: collapse; font-family: "Husqvarna Gothic", Arial, sans-serif; font-size: 13px; }
+    .datte-merged-table th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #3d3d3c; font-weight: 600; text-transform: uppercase; font-size: 12px; color: #666; }
+    .datte-merged-table td { padding: 8px 12px; border-bottom: 1px solid #e0e0e0; vertical-align: middle; }
+    .datte-merged-table input { width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-family: "Husqvarna Gothic", Arial, sans-serif; font-size: 13px; }
+    .datte-merged-table input:focus { outline: none; border-color: #3d3d3c; }
+    .datte-merged-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+    .datte-merged-status.status-pending { background: #fff3cd; color: #856404; }
+    .datte-merged-status.status-loading { background: #6f6f6f; color: white; }
+    .datte-merged-status.status-success { background: #28a745; color: white; }
+    .datte-merged-status.status-error { background: #dc3545; color: white; }
+    .datte-merged-footer { padding: 15px 20px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
+    .datte-merged-warning { padding: 12px 16px; margin-bottom: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; font-family: "Husqvarna Gothic", Arial, sans-serif; font-size: 13px; color: #856404; }
+    .datte-merged-warning-actions { display: flex; gap: 12px; margin-top: 10px; }
+  `,
+
   animations: `
     .loading-spinner { animation: spin 1s linear infinite; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
