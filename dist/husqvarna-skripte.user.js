@@ -713,13 +713,14 @@
       }
     };
   }
+  const UNSET = "__GM_STORE_UNSET__";
   function createStore(prefix, schema) {
     const prefixedKey = (key) => `${prefix}.${key}`;
     return {
       get(key) {
         const def = schema[key];
-        const raw = GM_getValue(prefixedKey(key), void 0);
-        if (raw === void 0) return def.default;
+        const raw = GM_getValue(prefixedKey(key), UNSET);
+        if (raw === UNSET) return def.default;
         if (def.serializer) return def.serializer.deserialize(raw);
         return raw;
       },
@@ -980,7 +981,7 @@
   function renderRow(entry) {
     const overrides = store.get("orderNameOverrides");
     const savedOverride = overrides.get(entry.orderNumber);
-    if (savedOverride) {
+    if (savedOverride !== void 0) {
       entry.userOverrideOrderNumber = savedOverride;
     }
     const statusClass = `status-${entry.status}`;
@@ -1012,7 +1013,13 @@
     }
     const input = document.getElementById(`datte-merged-input-${orderNumber}`);
     if (input && entry.status === "success" && !input.value) {
-      input.value = entry.userOverrideOrderNumber || entry.customerOrderNumber;
+      const autoValue = entry.userOverrideOrderNumber || entry.customerOrderNumber;
+      input.value = autoValue;
+      if (autoValue) {
+        const overrides = store.get("orderNameOverrides");
+        overrides.set(entry.orderNumber, autoValue);
+        store.set("orderNameOverrides", overrides);
+      }
     }
   }
   function getStatusText(entry) {

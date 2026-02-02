@@ -128,7 +128,7 @@ export function openMergedDownloadModal(): void {
 function renderRow(entry: MergedOrderEntry): string {
   const overrides = store.get('orderNameOverrides');
   const savedOverride = overrides.get(entry.orderNumber);
-  if (savedOverride) {
+  if (savedOverride !== undefined) {
     entry.userOverrideOrderNumber = savedOverride;
   }
 
@@ -167,7 +167,13 @@ function updateModalRow(orderNumber: string, entry: MergedOrderEntry): void {
   // Update input if customerOrderNumber was fetched and user hasn't typed yet
   const input = document.getElementById(`datte-merged-input-${orderNumber}`) as HTMLInputElement | null;
   if (input && entry.status === 'success' && !input.value) {
-    input.value = entry.userOverrideOrderNumber || entry.customerOrderNumber;
+    const autoValue = entry.userOverrideOrderNumber || entry.customerOrderNumber;
+    input.value = autoValue;
+    if (autoValue) {
+      const overrides = store.get('orderNameOverrides');
+      overrides.set(entry.orderNumber, autoValue);
+      store.set('orderNameOverrides', overrides);
+    }
   }
 }
 

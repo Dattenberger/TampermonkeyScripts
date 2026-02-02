@@ -1,5 +1,7 @@
 import type { Store, StoreSchemaDefinition } from './types';
 
+const UNSET = '__GM_STORE_UNSET__';
+
 export function createStore<S extends object>(
   prefix: string,
   schema: StoreSchemaDefinition<S>,
@@ -9,8 +11,8 @@ export function createStore<S extends object>(
   return {
     get<K extends keyof S & string>(key: K): S[K] {
       const def = schema[key];
-      const raw = GM_getValue(prefixedKey(key), undefined);
-      if (raw === undefined) return def.default;
+      const raw: unknown = GM_getValue(prefixedKey(key), UNSET);
+      if (raw === UNSET) return def.default;
       if (def.serializer) return def.serializer.deserialize(raw as string);
       return raw as S[K];
     },
