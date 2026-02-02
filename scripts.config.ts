@@ -29,7 +29,7 @@ export const scripts: Record<string, ScriptConfig> = {
       description: 'Husqvarna Portal Tools – Bestellexport via GraphQL mit Multi-Order-Support und Live-Status',
       author: 'Lukas Dattenberger',
       match: ['https://portal.husqvarnagroup.com/de/orders/*'],
-      grant: ['GM_addStyle', 'GM_xmlhttpRequest'],
+      grant: ['GM_addStyle', 'GM_xmlhttpRequest', 'GM_getValue', 'GM_setValue', 'GM_deleteValue'],
       connect: ['portal.husqvarnagroup.com'],
       updateURL: 'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/dist/husqvarna-skripte.user.js',
       downloadURL: 'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/dist/husqvarna-skripte.user.js',

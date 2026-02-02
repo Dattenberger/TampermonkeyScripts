@@ -1,3 +1,5 @@
+import { store, type ExportMode } from '../storage';
+
 export type MergedOrderStatus = 'pending' | 'loading' | 'success' | 'error';
 
 export interface MergedOrderEntry {
@@ -12,7 +14,8 @@ export interface MergedOrderEntry {
 }
 
 export const MergedState = {
-  mode: 'single' as 'single' | 'merged',
+  get mode(): ExportMode { return store.get('mode'); },
+  set mode(v: ExportMode) { store.set('mode', v); },
   selectedOrders: new Map<string, MergedOrderEntry>(),
   isDownloading: false,
   modalOpen: false,

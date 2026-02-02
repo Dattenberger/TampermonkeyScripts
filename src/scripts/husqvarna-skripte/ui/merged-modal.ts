@@ -2,6 +2,7 @@ import { ICONS, getStatusIcon } from '@lib/ui';
 import { MergedState, MergedOrderEntry, MergedOrderStatus } from '../merged/merged-state';
 import { startMergedDownloads } from '../merged/merged-download';
 import { exportMergedCsv, getFailedOrPendingOrders } from '../merged/merged-csv';
+import { store } from '../storage';
 
 export function openMergedDownloadModal(): void {
   if (MergedState.modalOpen) return;
@@ -50,6 +51,9 @@ export function openMergedDownloadModal(): void {
     if (input) {
       input.addEventListener('input', () => {
         entry.userOverrideOrderNumber = input.value;
+        const overrides = store.get('orderNameOverrides');
+        overrides.set(entry.orderNumber, input.value);
+        store.set('orderNameOverrides', overrides);
       });
     }
   });
@@ -122,6 +126,12 @@ export function openMergedDownloadModal(): void {
 }
 
 function renderRow(entry: MergedOrderEntry): string {
+  const overrides = store.get('orderNameOverrides');
+  const savedOverride = overrides.get(entry.orderNumber);
+  if (savedOverride) {
+    entry.userOverrideOrderNumber = savedOverride;
+  }
+
   const statusClass = `status-${entry.status}`;
   const statusText = getStatusText(entry);
   const icon = getStatusIcon(entry.status);

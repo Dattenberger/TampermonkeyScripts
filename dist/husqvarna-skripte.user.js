@@ -11,6 +11,9 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jquery-csv/1.0.21/jquery.csv.min.js
 // @connect      portal.husqvarnagroup.com
 // @grant        GM_addStyle
+// @grant        GM_deleteValue
+// @grant        GM_getValue
+// @grant        GM_setValue
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
@@ -710,8 +713,51 @@
       }
     };
   }
+  function createStore(prefix, schema) {
+    const prefixedKey = (key) => `${prefix}.${key}`;
+    return {
+      get(key) {
+        const def = schema[key];
+        const raw = GM_getValue(prefixedKey(key), void 0);
+        if (raw === void 0) return def.default;
+        if (def.serializer) return def.serializer.deserialize(raw);
+        return raw;
+      },
+      set(key, value) {
+        const def = schema[key];
+        if (def.serializer) {
+          GM_setValue(prefixedKey(key), def.serializer.serialize(value));
+        } else {
+          GM_setValue(prefixedKey(key), value);
+        }
+      },
+      remove(key) {
+        GM_deleteValue(prefixedKey(key));
+      }
+    };
+  }
+  function mapSerializer() {
+    return {
+      serialize: (map) => JSON.stringify([...map.entries()]),
+      deserialize: (raw) => new Map(JSON.parse(raw))
+    };
+  }
+  const store = createStore("husqvarna", {
+    mode: {
+      default: "single"
+    },
+    orderNameOverrides: {
+      default: /* @__PURE__ */ new Map(),
+      serializer: mapSerializer()
+    }
+  });
   const MergedState = {
-    mode: "single",
+    get mode() {
+      return store.get("mode");
+    },
+    set mode(v) {
+      store.set("mode", v);
+    },
     selectedOrders: /* @__PURE__ */ new Map(),
     isDownloading: false,
     modalOpen: false
@@ -870,6 +916,9 @@
       if (input) {
         input.addEventListener("input", () => {
           entry.userOverrideOrderNumber = input.value;
+          const overrides = store.get("orderNameOverrides");
+          overrides.set(entry.orderNumber, input.value);
+          store.set("orderNameOverrides", overrides);
         });
       }
     });
@@ -929,6 +978,11 @@
     });
   }
   function renderRow(entry) {
+    const overrides = store.get("orderNameOverrides");
+    const savedOverride = overrides.get(entry.orderNumber);
+    if (savedOverride) {
+      entry.userOverrideOrderNumber = savedOverride;
+    }
     const statusClass = `status-${entry.status}`;
     const statusText = getStatusText(entry);
     const icon = getStatusIcon(entry.status);

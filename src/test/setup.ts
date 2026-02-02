@@ -1,8 +1,24 @@
-import { vi } from 'vitest';
+import { vi, beforeEach } from 'vitest';
 
 // GM_* API mocks
 (globalThis as any).GM_xmlhttpRequest = vi.fn();
 (globalThis as any).GM_addStyle = vi.fn();
+
+// GM storage mocks
+const gmStorage = new Map<string, unknown>();
+(globalThis as any).GM_getValue = vi.fn((key: string, def?: unknown) =>
+  gmStorage.has(key) ? gmStorage.get(key) : def,
+);
+(globalThis as any).GM_setValue = vi.fn((key: string, val: unknown) => {
+  gmStorage.set(key, val);
+});
+(globalThis as any).GM_deleteValue = vi.fn((key: string) => {
+  gmStorage.delete(key);
+});
+
+beforeEach(() => {
+  gmStorage.clear();
+});
 
 // jQuery mock — chainable methods
 const createJQueryObj = () => {
