@@ -1,0 +1,45 @@
+#!/usr/bin/env sh
+
+# ──────────────────────────────────────────────
+# Pre-commit hook: typecheck → test → build → stage dist → version warning
+# ──────────────────────────────────────────────
+
+echo "🔍 Running typecheck..."
+npm run typecheck || {
+  echo "❌ Typecheck failed. Commit aborted."
+  exit 1
+}
+
+echo "🧪 Running tests..."
+npm run test || {
+  echo "❌ Tests failed. Commit aborted."
+  exit 1
+}
+
+echo "🔨 Building all scripts..."
+npm run build || {
+  echo "❌ Build failed. Commit aborted."
+  exit 1
+}
+
+# Stage any changed dist files
+git add dist/
+
+# Check if dist/ changed compared to what was previously staged
+if git diff --cached --quiet dist/ 2>/dev/null; then
+  echo "✅ dist/ unchanged — no version bump needed."
+else
+  echo ""
+  echo "⚠  dist/ has changed! Consider bumping the version before merging:"
+  echo ""
+  # List which scripts changed
+  for f in $(git diff --cached --name-only dist/); do
+    script_name=$(basename "$f" .user.js)
+    echo "   npm run release $script_name patch"
+    echo "   npm run release $script_name minor"
+    echo "   npm run release $script_name major"
+  done
+  echo ""
+  echo "   Continuing with commit (soft warning only)."
+  echo ""
+fi
