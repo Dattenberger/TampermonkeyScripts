@@ -33,7 +33,17 @@ if [[ "${1:-}" == "--all" || "${CHECK_ALL:-0}" == "1" ]]; then
     MODE="all"
 fi
 
-WORK_DIR="$(git rev-parse --show-toplevel)"
+# Locate ourselves: the hook lives at pipeline/scripts/hooks/pre-commit.
+# All npm commands run from pipeline/. Git operations work regardless of
+# cwd (they reference the surrounding repo), and `git diff --cached
+# --name-only` reports paths relative to cwd — which means root-level
+# legacy .js files show as `../<file>.js` and are correctly excluded
+# from the TS-relevance heuristic below.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PIPELINE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+cd "$PIPELINE_DIR"
+
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
 if [ "$MODE" = "all" ]; then
@@ -41,8 +51,6 @@ if [ "$MODE" = "all" ]; then
 else
     echo -e "${BLUE}=== Pre-commit hook (mode: STAGED) === [${GREEN}${BRANCH}${NC}]${BLUE}${NC}"
 fi
-
-cd "$WORK_DIR"
 
 STAGED=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null || true)
 
