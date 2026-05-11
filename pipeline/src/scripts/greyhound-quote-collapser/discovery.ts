@@ -4,7 +4,6 @@ import { setupItem } from './item-setup.js'
 
 function scanForItems(): void {
     for (const itemEl of document.querySelectorAll(CFG.itemSelector)) {
-        if (itemEl.classList.contains(CFG.legacyCloneClass)) continue
         setupItem(itemEl)
     }
 }
