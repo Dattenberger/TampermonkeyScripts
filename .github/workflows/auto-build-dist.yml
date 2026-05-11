@@ -1,10 +1,10 @@
 name: Auto-build dist
 
 # Builds all registered userscripts on every push to any branch (incl.
-# feature branches), then commits the regenerated `dist/` back if and only
-# if it actually changed. If the pre-commit hook already produced the
-# expected dist output locally, `git diff` is empty here → no extra commit,
-# no infinite loop.
+# feature branches), then commits the regenerated `pipeline/dist/` back
+# if and only if it actually changed. If the pre-commit hook already
+# produced the expected dist output locally, `git diff` is empty here →
+# no extra commit, no infinite loop.
 #
 # The `[skip ci]` marker on the auto-commit prevents this workflow (and
 # CI) from re-triggering on its own commit.
@@ -17,6 +17,10 @@ on:
 concurrency:
   group: auto-build-dist-${{ github.ref }}
   cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: pipeline
 
 jobs:
   build:
@@ -40,6 +44,7 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
+          cache-dependency-path: pipeline/package-lock.json
 
       - name: Install dependencies
         run: npm ci

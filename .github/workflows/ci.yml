@@ -10,6 +10,13 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    # The TypeScript build pipeline lives in pipeline/. Legacy standalone
+    # userscripts at the repo root are not CI-validated (they predate
+    # this pipeline and have no test suite).
+    working-directory: pipeline
+
 jobs:
   validate:
     name: Lint, Typecheck, Test, Build
@@ -23,6 +30,7 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
+          cache-dependency-path: pipeline/package-lock.json
 
       - name: Install dependencies
         run: npm ci

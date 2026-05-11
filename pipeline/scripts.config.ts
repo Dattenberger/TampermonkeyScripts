@@ -41,9 +41,9 @@ export const scripts: Record<string, ScriptConfig> = {
             grant: [],
             'run-at': 'document-idle',
             updateURL:
-                'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/dist/greyhound-quote-collapser.user.js',
+                'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/greyhound-quote-collapser.user.js',
             downloadURL:
-                'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/dist/greyhound-quote-collapser.user.js',
+                'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/greyhound-quote-collapser.user.js',
         },
     },
 }
