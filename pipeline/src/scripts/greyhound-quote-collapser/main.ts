@@ -1,9 +1,11 @@
-// Greyhound Quote Collapser v2 — iframe-direct manipulation.
+// Greyhound Quote Collapser v2.1 — multi-layout dispatch.
 //
-// Greyhound renders mail bodies into `<iframe srcdoc>`; React does not
-// reconcile the iframe document, so we mutate `contentDocument` directly.
-// Click delegation runs in the parent window context (no need for
-// `allow-scripts` on the iframe sandbox).
+// Two Greyhound rendering paths are supported via the layout registry:
+//   - iframe-srcdoc (Detail/Vollansicht): mutate iframe.contentDocument
+//   - inline (ChatView):                   self-healing mutation on the page DOM
+//
+// See layouts/index.ts for the registry, layouts/types.ts for the interface,
+// and layouts/{iframe,inline}.ts for the handlers.
 
 import { cleanupLegacyClones } from './legacy-cleanup.js'
 import { startDiscovery } from './discovery.js'
@@ -11,4 +13,4 @@ import { startDiscovery } from './discovery.js'
 cleanupLegacyClones()
 startDiscovery()
 
-console.log('[Greyhound Quote Collapser v2.0] aktiv – iframe-direkter Ansatz')
+console.log('[Greyhound Quote Collapser v2.1] aktiv – Layout-Dispatch (iframe + inline)')
