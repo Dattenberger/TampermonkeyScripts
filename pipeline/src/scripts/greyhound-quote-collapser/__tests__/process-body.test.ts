@@ -4,6 +4,7 @@ import { CFG } from '../config.js'
 import {
     OUTGOING_MULTI_QUOTE,
     OUTGOING_DEEP_THREAD,
+    OUTGOING_GREYHOUND_FORWARD_CHAIN,
     INCOMING_URSPRUNGLICHE_DATEN,
     INCOMING_AM_SCHRIEB,
     INCOMING_BLOCKQUOTE_ONLY,
@@ -79,6 +80,21 @@ describe('processBody', () => {
         const innerSigButtons = body.querySelectorAll(`.${CFG.btnDetectedSigClass}`)
         expect(innerSigButtons.length).toBeGreaterThanOrEqual(3)
         expect(innerSigButtons.length).toBeLessThanOrEqual(CFG.threadSigMaxIterations)
+    })
+
+    it('outgoing-greyhound-forward-chain real fixture: collapses the "Ursprüngliche Daten" thread under "Signatur & Verlauf"', () => {
+        const body = makeBody(OUTGOING_GREYHOUND_FORWARD_CHAIN)
+        processBody(body, 'outgoing')
+
+        const outerBtn = body.querySelector(`.${CFG.btnQuoteClass}`)
+        expect(outerBtn).not.toBeNull()
+        expect(outerBtn?.textContent).toContain('Signatur & Verlauf')
+
+        // The inner blockquote contains a second "-----Ursprüngliche Daten-----"
+        // marker preceded by a "--" footer, so detect-sigs should produce at
+        // least one inner sig wrapper.
+        const innerSigButtons = body.querySelectorAll(`.${CFG.btnDetectedSigClass}`)
+        expect(innerSigButtons.length).toBeGreaterThanOrEqual(1)
     })
 
     it('incoming-am-schrieb real fixture: wraps starting at the "Am … schrieb …" line', () => {
