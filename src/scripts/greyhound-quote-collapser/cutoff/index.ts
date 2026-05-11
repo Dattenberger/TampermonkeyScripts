@@ -1,0 +1,5 @@
+export { findInRange, type Cutoff, type TextCutoff, type ElementCutoff } from './find-in-range.js'
+export { findQuoteCutoff } from './find-quote.js'
+export { findFooterCutoff } from './find-footer.js'
+export { liftToTopLevel } from './lift.js'
+export { applyCutoff, applyCutoffWithLiftedEnd, type ApplyCutoffResult } from './apply.js'

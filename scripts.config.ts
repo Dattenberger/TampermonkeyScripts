@@ -18,6 +18,7 @@ export interface ScriptConfig {
         grant: string[]
         connect?: string[]
         icon?: string
+        'run-at'?: 'document-start' | 'document-body' | 'document-end' | 'document-idle' | 'context-menu'
         updateURL?: string
         downloadURL?: string
     }
@@ -26,22 +27,23 @@ export interface ScriptConfig {
 }
 
 export const scripts: Record<string, ScriptConfig> = {
-    // Register scripts here once they exist under `src/scripts/<name>/`.
-    // Example shape (kept as a comment so the empty registry stays valid):
-    //
-    // 'example-script': {
-    //     entry: 'src/scripts/example-script/main.ts',
-    //     outputFileName: 'example-script.user.js',
-    //     userscript: {
-    //         name: 'Example Script',
-    //         namespace: 'https://github.com/Dattenberger/TampermonkeyScripts',
-    //         version: '1.0.0',
-    //         description: 'Short description',
-    //         author: 'Lukas Dattenberger',
-    //         match: ['https://example.com/*'],
-    //         grant: ['GM_addStyle'],
-    //         updateURL: 'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/dist/example-script.user.js',
-    //         downloadURL: 'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/dist/example-script.user.js',
-    //     },
-    // },
+    'greyhound-quote-collapser': {
+        entry: 'src/scripts/greyhound-quote-collapser/main.ts',
+        outputFileName: 'greyhound-quote-collapser.user.js',
+        userscript: {
+            name: 'Greyhound Quote Collapser',
+            namespace: 'https://robotico.de/',
+            version: '2.0.0',
+            description:
+                'Klappt Signatur+Verlauf in Greyhound-E-Mails ein. Manipuliert das iframe-Document direkt (kein Klon), weil Greyhound die Mail in <iframe srcdoc> rendert und React den iframe-Inhalt nicht reconciliert.',
+            author: 'Lukas Dattenberger',
+            match: ['https://greyhound.dattenberger.com/web/unity/*'],
+            grant: [],
+            'run-at': 'document-idle',
+            updateURL:
+                'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/dist/greyhound-quote-collapser.user.js',
+            downloadURL:
+                'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/dist/greyhound-quote-collapser.user.js',
+        },
+    },
 }
