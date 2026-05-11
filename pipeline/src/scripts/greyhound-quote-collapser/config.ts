@@ -13,7 +13,6 @@ export interface CollapserConfig {
     readonly btnClass: string
     readonly btnQuoteClass: string
     readonly btnDetectedSigClass: string
-    readonly legacyCloneClass: string
     readonly quotePatterns: readonly RegExp[]
     readonly footerPatterns: readonly RegExp[]
     readonly debounceMs: number
@@ -30,7 +29,6 @@ export const CFG: CollapserConfig = {
     btnClass: 'gh-qc-toggle',
     btnQuoteClass: 'gh-qc-toggle-quote',
     btnDetectedSigClass: 'gh-qc-toggle-detected-sig',
-    legacyCloneClass: 'gh-qc-clone',
 
     quotePatterns: [
         /-{3,}\s*Urspr(ü|ue)ngliche Daten\s*-{3,}/i,

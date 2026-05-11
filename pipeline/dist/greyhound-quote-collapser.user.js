@@ -12,11 +12,6 @@
 
 (function() {
   'use strict';
-	function cleanupLegacyClones(root = document) {
-		for (const el of root.querySelectorAll(".gh-qc-clone")) el.remove();
-		for (const el of root.querySelectorAll(".gh-qc-original-hidden")) el.classList.remove("gh-qc-original-hidden");
-		for (const el of root.querySelectorAll(".gh-qc-processed")) el.classList.remove("gh-qc-processed");
-	}
 	function debounce(fn, ms) {
 		let timer;
 		return (...args) => {
@@ -36,7 +31,6 @@
 		btnClass: "gh-qc-toggle",
 		btnQuoteClass: "gh-qc-toggle-quote",
 		btnDetectedSigClass: "gh-qc-toggle-detected-sig",
-		legacyCloneClass: "gh-qc-clone",
 		quotePatterns: [
 			/-{3,}\s*Urspr(ü|ue)ngliche Daten\s*-{3,}/i,
 			/-{3,}\s*Original Message\s*-{3,}/i,
@@ -421,7 +415,6 @@
 		return itemEl.closest(CFG.outgoingSelector) === null ? "incoming" : "outgoing";
 	}
 	function setupItem(itemEl) {
-		if (itemEl.classList.contains(CFG.legacyCloneClass)) return;
 		if (dispatchedItems.has(itemEl)) return;
 		dispatchedItems.add(itemEl);
 		const direction = getDirection(itemEl);
@@ -431,10 +424,7 @@
 		}
 	}
 	function scanForItems() {
-		for (const itemEl of document.querySelectorAll(CFG.itemSelector)) {
-			if (itemEl.classList.contains(CFG.legacyCloneClass)) continue;
-			setupItem(itemEl);
-		}
+		for (const itemEl of document.querySelectorAll(CFG.itemSelector)) setupItem(itemEl);
 	}
 	var triggerScan = debounce(scanForItems, CFG.debounceMs);
 	var discoveryObserver = new MutationObserver((mutations) => {
@@ -453,7 +443,6 @@
 		});
 		scanForItems();
 	}
-	cleanupLegacyClones();
 	startDiscovery();
 	console.log("[Greyhound Quote Collapser v2.1] aktiv – Layout-Dispatch (iframe + inline)");
 })();

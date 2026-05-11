@@ -13,7 +13,6 @@ function getDirection(itemEl: Element): Direction {
 }
 
 export function setupItem(itemEl: Element): void {
-    if (itemEl.classList.contains(CFG.legacyCloneClass)) return
     if (dispatchedItems.has(itemEl)) return
     dispatchedItems.add(itemEl)
 
