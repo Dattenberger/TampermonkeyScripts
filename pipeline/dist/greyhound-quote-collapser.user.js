@@ -4,8 +4,8 @@
 // @version      2.0.0
 // @author       Lukas Dattenberger
 // @description  Klappt Signatur+Verlauf in Greyhound-E-Mails ein. Manipuliert das iframe-Document direkt (kein Klon), weil Greyhound die Mail in <iframe srcdoc> rendert und React den iframe-Inhalt nicht reconciliert.
-// @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/dist/greyhound-quote-collapser.user.js
-// @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/dist/greyhound-quote-collapser.user.js
+// @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/greyhound-quote-collapser.user.js
+// @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/greyhound-quote-collapser.user.js
 // @match        https://greyhound.dattenberger.com/web/unity/*
 // @run-at       document-idle
 // ==/UserScript==
