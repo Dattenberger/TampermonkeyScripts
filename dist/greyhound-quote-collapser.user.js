@@ -198,8 +198,15 @@
 	}
 	function applyCutoffWithLiftedEnd(container, sigCutoff, endCutoff, label, typeClass) {
 		let endTopNode = null;
-		if (endCutoff !== null) endTopNode = liftToTopLevel(container, endCutoff.index === 0 ? endCutoff.node : endCutoff.node.splitText(endCutoff.index));
-		return applyCutoff(container, sigCutoff, label, endTopNode, typeClass);
+		let endStart = null;
+		if (endCutoff !== null) {
+			endStart = endCutoff.index === 0 ? endCutoff.node : endCutoff.node.splitText(endCutoff.index);
+			endTopNode = liftToTopLevel(container, endStart);
+		}
+		return {
+			...applyCutoff(container, sigCutoff, label, endTopNode, typeClass),
+			endStart
+		};
 	}
 	var INTERACTIVE_OR_MEDIA_SELECTOR = "img, svg, video, audio, button, input, iframe, a";
 	var WHITESPACE_INCLUDING_NBSP = /[\u00A0\s]/g;
@@ -224,10 +231,9 @@
 		for (let i = 0; i < CFG.threadSigMaxIterations; i++) {
 			const sig = findInRange(threadWrapper, CFG.footerPatterns, searchAfterNode, null);
 			if (sig === null) break;
-			const nextQuote = findInRange(threadWrapper, CFG.quotePatterns, sig.node, null);
-			applyCutoffWithLiftedEnd(threadWrapper, sig, nextQuote, "Signatur", CFG.btnDetectedSigClass);
-			if (nextQuote === null) break;
-			searchAfterNode = nextQuote.node;
+			const result = applyCutoffWithLiftedEnd(threadWrapper, sig, findInRange(threadWrapper, CFG.quotePatterns, sig.node, null), "Signatur", CFG.btnDetectedSigClass);
+			if (result.endStart === null) break;
+			searchAfterNode = result.endStart;
 		}
 	}
 	function processBody(body, direction) {

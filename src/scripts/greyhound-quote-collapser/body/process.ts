@@ -28,9 +28,13 @@ function detectSigsInThread(threadWrapper: Element, skipUntilFirstQuote: boolean
         const sig: TextCutoff | null = findInRange(threadWrapper, CFG.footerPatterns, searchAfterNode, null)
         if (sig === null) break
         const nextQuote: TextCutoff | null = findInRange(threadWrapper, CFG.quotePatterns, sig.node, null)
-        applyCutoffWithLiftedEnd(threadWrapper, sig, nextQuote, 'Signatur', CFG.btnDetectedSigClass)
-        if (nextQuote === null) break
-        searchAfterNode = nextQuote.node
+        const result = applyCutoffWithLiftedEnd(threadWrapper, sig, nextQuote, 'Signatur', CFG.btnDetectedSigClass)
+        if (result.endStart === null) break
+        // Use the lifted/split text node, not the original nextQuote.node —
+        // splitText() leaves the original holding only the whitespace
+        // prefix, which collectTextNodes filters out (see ApplyCutoffWith
+        // LiftedEndResult.endStart for the full reasoning).
+        searchAfterNode = result.endStart
     }
 }
 

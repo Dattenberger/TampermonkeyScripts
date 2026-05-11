@@ -8,6 +8,16 @@ export interface ApplyCutoffResult {
     wrapper: HTMLDivElement
 }
 
+export interface ApplyCutoffWithLiftedEndResult extends ApplyCutoffResult {
+    // The text node that NOW starts with the end marker, after any
+    // splitText() the wrapping had to perform. Callers iterating through
+    // a thread must use THIS node — not `endCutoff.node` — as the next
+    // `startAfter` anchor, because splitText leaves the original node
+    // holding only the whitespace prefix, which `collectTextNodes` then
+    // filters out (no `indexOf` hit → search returns null).
+    endStart: Text | null
+}
+
 // Apply a cutoff: split (if text), lift to top level, insert toggle button
 // + collapsed wrapper, move siblings from cutoff up to `endNode` (exclusive)
 // into the wrapper.
@@ -51,12 +61,12 @@ export function applyCutoffWithLiftedEnd(
     endCutoff: TextCutoff | null,
     label: string,
     typeClass: string,
-): ApplyCutoffResult {
+): ApplyCutoffWithLiftedEndResult {
     let endTopNode: ChildNode | null = null
+    let endStart: Text | null = null
     if (endCutoff !== null) {
-        const endStart: ChildNode =
-            endCutoff.index === 0 ? endCutoff.node : endCutoff.node.splitText(endCutoff.index)
+        endStart = endCutoff.index === 0 ? endCutoff.node : endCutoff.node.splitText(endCutoff.index)
         endTopNode = liftToTopLevel(container, endStart)
     }
-    return applyCutoff(container, sigCutoff, label, endTopNode, typeClass)
+    return { ...applyCutoff(container, sigCutoff, label, endTopNode, typeClass), endStart }
 }

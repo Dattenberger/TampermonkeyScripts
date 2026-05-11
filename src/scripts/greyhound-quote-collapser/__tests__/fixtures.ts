@@ -4,13 +4,14 @@
 // Vitest runs in Node, so this is fine — no Vite plugin tricks needed.
 //
 // FIXTURE STATUS:
-//   ✅ OUTGOING_MULTI_QUOTE        — real sanitised Greyhound snippet
-//   📝 INCOMING_URSPRUNGLICHE_DATEN — placeholder, awaiting real snippet
-//   📝 INCOMING_ORIGINAL_MESSAGE   — placeholder, awaiting real snippet
-//   📝 INCOMING_AM_SCHRIEB         — placeholder, awaiting real snippet
-//   📝 INCOMING_BLOCKQUOTE_ONLY    — placeholder, awaiting real snippet
-//   📝 OUTGOING_NO_FOOTER          — placeholder, awaiting real snippet
-//   📝 WHITESPACE_NOISE            — placeholder, awaiting real snippet
+//   ✅ OUTGOING_MULTI_QUOTE         — real sanitised Greyhound snippet (2 quote levels)
+//   ✅ OUTGOING_DEEP_THREAD          — real sanitised Greyhound snippet (4 quote levels)
+//   ✅ INCOMING_AM_SCHRIEB           — real sanitised Greyhound snippet ("Am … schrieb …" pattern)
+//   📝 INCOMING_URSPRUNGLICHE_DATEN  — placeholder, awaiting real snippet
+//   📝 INCOMING_ORIGINAL_MESSAGE     — placeholder, awaiting real snippet
+//   📝 INCOMING_BLOCKQUOTE_ONLY      — placeholder, awaiting real snippet
+//   📝 OUTGOING_NO_FOOTER            — placeholder, awaiting real snippet
+//   📝 WHITESPACE_NOISE              — placeholder, awaiting real snippet
 
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -23,6 +24,7 @@ function load(name: string): string {
 }
 
 export const OUTGOING_MULTI_QUOTE = load('outgoing-multi-quote.html')
+export const OUTGOING_DEEP_THREAD = load('outgoing-deep-thread.html')
 export const INCOMING_URSPRUNGLICHE_DATEN = load('incoming-ursprungliche-daten.html')
 export const INCOMING_ORIGINAL_MESSAGE = load('incoming-original-message.html')
 export const INCOMING_AM_SCHRIEB = load('incoming-am-schrieb.html')
