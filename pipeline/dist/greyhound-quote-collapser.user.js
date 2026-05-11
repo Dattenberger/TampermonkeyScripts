@@ -204,15 +204,55 @@
 	}
 	var INTERACTIVE_OR_MEDIA_SELECTOR = "img, svg, video, audio, button, input, iframe, a";
 	var WHITESPACE_INCLUDING_NBSP = /[\u00A0\s]/g;
-	function isVisuallyEmpty(el) {
+	function isVisuallyEmptyP(node) {
+		if (node.nodeType !== Node.ELEMENT_NODE) return false;
+		const el = node;
+		if (el.tagName !== "P") return false;
 		if (el.classList.contains(CFG.wrapperClass)) return false;
 		if (el.classList.contains(CFG.btnClass)) return false;
 		if (el.querySelector(INTERACTIVE_OR_MEDIA_SELECTOR) !== null) return false;
 		return (el.textContent ?? "").replaceAll(WHITESPACE_INCLUDING_NBSP, "").length === 0;
 	}
+	function isWhitespaceTextNode(node) {
+		if (node.nodeType !== Node.TEXT_NODE) return false;
+		return (node.nodeValue ?? "").replaceAll(WHITESPACE_INCLUDING_NBSP, "").length === 0;
+	}
+	function precedingIsAllEmpty(p) {
+		let n = p.previousSibling;
+		while (n !== null) {
+			if (!isWhitespaceTextNode(n) && !isVisuallyEmptyP(n)) return false;
+			n = n.previousSibling;
+		}
+		return true;
+	}
+	function followingIsAllEmpty(p) {
+		let n = p.nextSibling;
+		while (n !== null) {
+			if (!isWhitespaceTextNode(n) && !isVisuallyEmptyP(n)) return false;
+			n = n.nextSibling;
+		}
+		return true;
+	}
+	function previousIsEmptyP(p) {
+		let n = p.previousSibling;
+		while (n !== null && isWhitespaceTextNode(n)) n = n.previousSibling;
+		return n !== null && isVisuallyEmptyP(n);
+	}
 	function cleanupWhitespace(root) {
+		const candidates = [];
+		for (const p of root.querySelectorAll("p")) if (isVisuallyEmptyP(p)) candidates.push(p);
 		const toRemove = [];
-		for (const el of root.querySelectorAll("p")) if (isVisuallyEmpty(el)) toRemove.push(el);
+		for (const p of candidates) {
+			if (precedingIsAllEmpty(p)) {
+				toRemove.push(p);
+				continue;
+			}
+			if (followingIsAllEmpty(p)) {
+				toRemove.push(p);
+				continue;
+			}
+			if (previousIsEmptyP(p)) toRemove.push(p);
+		}
 		for (const el of toRemove) el.remove();
 	}
 	function detectSigsInThread(threadWrapper, skipUntilFirstQuote) {
