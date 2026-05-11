@@ -3,3 +3,4 @@
 // outside code goes through this barrel.
 
 export { nonEmpty, truncate } from './string.js'
+export { debounce } from './debounce.js'
