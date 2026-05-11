@@ -1,0 +1,11 @@
+{
+    "name": "eslint-plugin-index-boundary",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "Project-Local ESLint plugin: enforce index.ts as Public-API boundary.",
+    "main": "./lib/index.js",
+    "exports": {
+        ".": "./lib/index.js"
+    }
+}
