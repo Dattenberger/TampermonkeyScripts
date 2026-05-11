@@ -33,9 +33,9 @@ export const scripts: Record<string, ScriptConfig> = {
         userscript: {
             name: 'Greyhound Quote Collapser',
             namespace: 'https://robotico.de/',
-            version: '2.0.0',
+            version: '2.1.0',
             description:
-                'Klappt Signatur+Verlauf in Greyhound-E-Mails ein. Manipuliert das iframe-Document direkt (kein Klon), weil Greyhound die Mail in <iframe srcdoc> rendert und React den iframe-Inhalt nicht reconciliert.',
+                'Klappt Signatur+Verlauf in Greyhound-E-Mails ein. Unterstützt iframe-srcdoc (Detail-Vollansicht) und inline (ChatView) gleichermaßen. Inline-Pfad mit Self-Healing-MutationObserver gegen React-Re-Renders.',
             author: 'Lukas Dattenberger',
             match: ['https://greyhound.dattenberger.com/web/unity/*'],
             grant: [],

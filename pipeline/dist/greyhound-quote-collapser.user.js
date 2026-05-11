@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Greyhound Quote Collapser
 // @namespace    https://robotico.de/
-// @version      2.0.0
+// @version      2.1.0
 // @author       Lukas Dattenberger
-// @description  Klappt Signatur+Verlauf in Greyhound-E-Mails ein. Manipuliert das iframe-Document direkt (kein Klon), weil Greyhound die Mail in <iframe srcdoc> rendert und React den iframe-Inhalt nicht reconciliert.
+// @description  Klappt Signatur+Verlauf in Greyhound-E-Mails ein. Unterstützt iframe-srcdoc (Detail-Vollansicht) und inline (ChatView) gleichermaßen. Inline-Pfad mit Self-Healing-MutationObserver gegen React-Re-Renders.
 // @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/greyhound-quote-collapser.user.js
 // @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/greyhound-quote-collapser.user.js
 // @match        https://greyhound.dattenberger.com/web/unity/*
@@ -268,10 +268,10 @@
 		const newHeight = Math.max(root.scrollHeight, body.scrollHeight);
 		if (newHeight > 0) iframe.style.height = `${newHeight}px`;
 	}
-	var delegatedDocs = new WeakSet();
+	var delegatedDocs$1 = new WeakSet();
 	function setupClickDelegation(iframe, doc) {
-		if (delegatedDocs.has(doc)) return;
-		delegatedDocs.add(doc);
+		if (delegatedDocs$1.has(doc)) return;
+		delegatedDocs$1.add(doc);
 		doc.addEventListener("click", (event) => {
 			const target = event.target;
 			if (target === null) return;
@@ -324,23 +324,111 @@
 		const doc = safeContentDoc(iframe);
 		if (doc !== null && doc.readyState === "complete" && doc.body !== null) processIframe(iframe, direction);
 	}
-	var processedItems = new WeakSet();
+	var wiredItems = new WeakSet();
+	function setupAllIframes(itemEl, direction) {
+		for (const iframe of itemEl.querySelectorAll(CFG.iframeSelector)) setupIframe(iframe, direction);
+	}
+	var iframeLayout = {
+		name: "iframe-srcdoc",
+		matches: (itemEl) => itemEl.querySelector(CFG.iframeSelector) !== null,
+		setup: (itemEl, direction) => {
+			if (wiredItems.has(itemEl)) return;
+			wiredItems.add(itemEl);
+			setupAllIframes(itemEl, direction);
+			new MutationObserver(() => {
+				setupAllIframes(itemEl, direction);
+			}).observe(itemEl, {
+				childList: true,
+				subtree: true
+			});
+		}
+	};
+	var delegatedDocs = new WeakSet();
+	function setupInlineClickDelegation(doc) {
+		if (delegatedDocs.has(doc)) return;
+		delegatedDocs.add(doc);
+		doc.addEventListener("click", (event) => {
+			const target = event.target;
+			if (target === null) return;
+			const closest = target.closest(`.${CFG.btnClass}`);
+			if (closest === null) return;
+			const btn = closest;
+			event.preventDefault();
+			event.stopPropagation();
+			const wrapper = btn.nextElementSibling;
+			if (wrapper === null || !wrapper.classList.contains(CFG.wrapperClass)) return;
+			const nowVisible = wrapper.classList.toggle(CFG.visibleClass);
+			const label = btn.dataset.label ?? "";
+			btn.textContent = `${nowVisible ? "↑ " : "↓ "}${label}${nowVisible ? " ausblenden" : " anzeigen"}`;
+		});
+	}
+	var setupItems = new WeakSet();
+	function unwrapAndRemoveStale(itemEl) {
+		for (const btn of itemEl.querySelectorAll(`.${CFG.btnClass}`)) btn.remove();
+		for (const wrapper of itemEl.querySelectorAll(`.${CFG.wrapperClass}`)) {
+			const parent = wrapper.parentNode;
+			if (parent === null) continue;
+			while (wrapper.firstChild !== null) parent.insertBefore(wrapper.firstChild, wrapper);
+			wrapper.remove();
+		}
+	}
+	function ensureProcessed(itemEl, direction) {
+		if (itemEl.querySelector(`.${CFG.btnClass}`) !== null) return;
+		unwrapAndRemoveStale(itemEl);
+		processBody(itemEl, direction);
+	}
+	function setupInline(itemEl, direction) {
+		if (setupItems.has(itemEl)) return;
+		setupItems.add(itemEl);
+		const doc = itemEl.ownerDocument;
+		injectStyles(doc);
+		setupInlineClickDelegation(doc);
+		let processing = false;
+		const observer = new MutationObserver(() => {
+			if (processing) return;
+			processing = true;
+			observer.disconnect();
+			try {
+				ensureProcessed(itemEl, direction);
+			} finally {
+				observer.observe(itemEl, {
+					childList: true,
+					subtree: true
+				});
+				processing = false;
+			}
+		});
+		processing = true;
+		try {
+			ensureProcessed(itemEl, direction);
+		} finally {
+			observer.observe(itemEl, {
+				childList: true,
+				subtree: true
+			});
+			processing = false;
+		}
+	}
+	var layouts = [iframeLayout, {
+		name: "inline-chatview",
+		matches: () => true,
+		setup: (itemEl, direction) => {
+			setupInline(itemEl, direction);
+		}
+	}];
+	var dispatchedItems = new WeakSet();
 	function getDirection(itemEl) {
 		return itemEl.closest(CFG.outgoingSelector) === null ? "incoming" : "outgoing";
 	}
 	function setupItem(itemEl) {
-		if (processedItems.has(itemEl)) return;
 		if (itemEl.classList.contains(CFG.legacyCloneClass)) return;
-		processedItems.add(itemEl);
+		if (dispatchedItems.has(itemEl)) return;
+		dispatchedItems.add(itemEl);
 		const direction = getDirection(itemEl);
-		const setupAllIframes = () => {
-			for (const iframe of itemEl.querySelectorAll(CFG.iframeSelector)) setupIframe(iframe, direction);
-		};
-		setupAllIframes();
-		new MutationObserver(setupAllIframes).observe(itemEl, {
-			childList: true,
-			subtree: true
-		});
+		for (const layout of layouts) if (layout.matches(itemEl)) {
+			layout.setup(itemEl, direction);
+			return;
+		}
 	}
 	function scanForItems() {
 		for (const itemEl of document.querySelectorAll(CFG.itemSelector)) {
@@ -367,5 +455,5 @@
 	}
 	cleanupLegacyClones();
 	startDiscovery();
-	console.log("[Greyhound Quote Collapser v2.0] aktiv – iframe-direkter Ansatz");
+	console.log("[Greyhound Quote Collapser v2.1] aktiv – Layout-Dispatch (iframe + inline)");
 })();
