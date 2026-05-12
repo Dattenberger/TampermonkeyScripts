@@ -1,0 +1,177 @@
+<!--
+  REAL FIXTURE — sanitised Greyhound ChatView snippet (outgoing email with a
+  3-level forward chain).
+
+  Distinct shape from outgoing-deep-thread.html: instead of nested
+  <blockquote> elements (Gmail-style), Greyhound's "Ursprüngliche Daten"
+  forwarding format wraps the entire previous-message chain in a SINGLE
+  outer <blockquote>, with sub-messages separated only by
+  <strong>Gesendet:</strong>/<strong>Von:</strong>/<strong>Betreff:</strong>
+  header lines (no further nesting). One inner "-----Ursprüngliche Daten-----"
+  marker sits inside the blockquote and continues the chain another step.
+
+  Provided by user from a live ChatView session where the script was not
+  collapsing anything — confirmed root-cause: this layout has no
+  <iframe srcdoc> wrapper, so the current discovery path never reaches
+  processBody. The fixture exists to lock in processBody's behaviour on
+  this body shape, independently of discovery.
+
+  Sanitisation:
+    Peter Kunde          → Peter Kunde
+    peter@kunde.de  → peter@kunde.de
+    Musterstr. 1 / Musterstadt → Musterstr. 1 / Musterstadt
+    0123-4567890            → 0123-4567890
+    T-XXXXXXXXXX-XX         → T-XXXXXXXXXX-XX
+    Angebotsnummer XXXX     → XXXX
+    Google-Drive / WeTransfer share URLs → example placeholders
+  Dattenberger / Robotico data kept verbatim (selectors / signature parsing).
+-->
+<div class="chatView__itemContent___015d883e">
+    <span>
+        <p>Hallo Herr Kunde,</p>
+        <p>
+</p>
+        <p>Es handelt sich in dem Angebot XXXX um den H215E nicht den X , mein Fehler.</p>
+        <p>Derzeit habe ich noch alle Modelle auf Lager.
+</p>
+        <p>W-Lan an der Ladestation wäre ratsam für die Updates, diese sind aber auch über FOTA (Telefon) möglich. Für den Betrieb benötigt er kein W-Lan.</p>
+        <p>Rasenmähen unmittelbar vor der Installation wäre wichtig, damit der Techniker die Kanten genau sehen kann. Eine 230V Steckdose muss im Bereich max 5m vorhanden sein, aber sonst nichts spezielles.</p>
+        <p>Die Installation kann in der Regel problemlos mit den vorhandenen Gegebenheiten erfolgen. Wenn Sie die Mähkanten später anlegen möchten, ist das kein Problem. Der Mähroboter wird Ihnen dabei helfen, die Ränder gut zu definieren, bzw. können Sie diesen Bereich über die App jederzeit ändern. Falls Sie noch weitere Fragen haben oder Unterstützung benötigen, stehe ich Ihnen jederzeit zur Verfügung.</p>
+        <p>
+</p>
+        <p>Mit freundlichen Grüßen aus Dachau
+Arno Dattenberger
+- Inhaber -</p>
+        <p>
+
+</p>
+        <p>
+
+</p>
+        <p>--</p>
+        <p><strong>Dattenberger Handels e.K.</strong>
+<strong>Mährobotertechnik - Forst- und Gartentechnik</strong></p>
+        <p><a href="https://maps.app.goo.gl/aYUz9qS1h7pnWgQz7" target="_blank">Rudolf-Diesel-Str. 6</a>
+<a href="https://maps.app.goo.gl/aYUz9qS1h7pnWgQz7" target="_blank">85221 Dachau</a>
+Tel: +498954685833</p>
+        <p><a href="https://dattenberger.com/" target="_blank">www.dattenberger.com</a>
+<a href="&quot;mail:service@dattenberger.com" target="_blank">service@dattenberger.com</a></p>
+Mo-Do:&nbsp;09:00 - 13:00 und 14:00 - 18:00 Uhr
+Fr:09:00 - 13:00 Uhr
+Sa:geschlossen
+oder nach Vereinbarung<p>Datenschutz:&nbsp;<a href="https://dattenberger.com/datenschutz" target="_blank">https://dattenberger.com/datenschutz</a></p>Ihre Premium-Testphase ist beendet<p>
+</p>
+-----Ursprüngliche Daten-----
+
+<b>Datum:</b> 11.05.2026 09:49:08
+
+<b>Von:</b> Peter Kunde
+
+<b>An:</b>
+
+<b>Betreff:</b> Aw: AW: Rückfrage zu Ihrer Anfrage für einen Mähroboter
+
+<b>Vorgang:</b> T-XXXXXXXXXX-XX
+
+<blockquote>Hallo Herr Dattenberger,&nbsp;
+&nbsp;
+herzlichen Dank für die überarbeitete Empfehlung.&nbsp;
+&nbsp;
+Mir sagt das Modell H215E sehr zu.&nbsp;
+&nbsp;
+Noch 2 abschließende Fragen:&nbsp;
+<ul>
+<li>Um Missverständnissen vorzubeugen. Im Angebot steht beim Modell: X215E und darunter bei er Artikelnummer H215E. Ich gehe aber davon aus, dass es sich beim Aktionsangebot um das H-Modell handelt.&nbsp;</li>
+<li>Wie ist die Lieferzeit?</li>
+<li>W-Lan ist bei uns im Garten schwierig. Genügt hier die Mobilfunk-Verbindung?</li>
+<li>Muss ich spezielles vor der Installation berücksichtigen?</li>
+<li>Kann das Gerät an eine Steckdose angeschossen werden? Oder muss ich hier noch gesonderte Elektrik bereitstellen?</li>
+</ul>
+Herzlichen Dank und viele Grüße
+Peter Kunde
+&nbsp;
+&nbsp;
+
+<strong>Gesendet: </strong>Freitag, 8. Mai 2026 um 17:15
+<strong>Von: </strong>"Dattenberger Team"
+<strong>An: </strong>"Peter Kunde"
+<strong>Betreff: </strong>AW: Rückfrage zu Ihrer Anfrage für einen Mähroboter [T-XXXXXXXXXX-XX]
+
+<p>Hallo Herr Kunde,</p>
+<p>&nbsp;</p>
+<p>vielen Dank für die Anfrage eines Mähroboters von uns und das angenehme Telefonat gestern.</p>
+<p>Unsere Empfehlung liegt ganz klar auf dem H215E, denn hier ist die Mega Aktion bis 30.05.2026 sehr interessant.</p>
+<p>&nbsp;</p>
+<p>Ich wünsche Ihnen ein angenehmes Wochenende</p>
+<p>Mit freundlichen Grüßen aus Dachau
+Arno Dattenberger
+- Inhaber -&nbsp;</p>
+<p>
+
+</p>
+<p>--</p>
+
+<p><strong>Dattenberger Handels e.K.</strong>
+<strong>Mährobotertechnik - Forst- und Gartentechnik</strong></p>
+<p><a href="https://maps.app.goo.gl/aYUz9qS1h7pnWgQz7" target="_blank">Rudolf-Diesel-Str. 6</a>
+<a href="https://maps.app.goo.gl/aYUz9qS1h7pnWgQz7" target="_blank">85221 Dachau</a>
+Tel: +498954685833</p>
+<p><a href="https://dattenberger.com/" target="_blank">www.dattenberger.com</a>
+service@dattenberger.com</p>
+
+Mo-Do:&nbsp;
+09:00 - 13:00 und 14:00 - 18:00 Uhr
+
+Fr:
+09:00 - 13:00 Uhr
+
+Sa:
+geschlossen
+oder nach Vereinbarung
+
+<p>Datenschutz:&nbsp;<a href="https://dattenberger.com/datenschutz" target="_blank">https://dattenberger.com/datenschutz</a></p>
+Ihre Premium-Testphase ist beendet
+<p>&nbsp;</p>
+-----Ursprüngliche Daten-----
+<strong>Datum:</strong> 07.05.2026 08:33:19
+<strong>Von:</strong> Peter Kunde
+<strong>An:</strong>
+<strong>Betreff:</strong> Fw: Aw: Rückfrage zu Ihrer Anfrage für einen Mähroboter
+<strong>Vorgang:</strong> T-XXXXXXXXXX-XX
+
+Guten Morgen Herr Dattenberger,&nbsp;
+&nbsp;
+konnten Sie sich den Garten schon ansehen?
+&nbsp;
+<a href="https://drive.example.com/file/XXX" target="_blank">https://drive.example.com/file/XXX</a>
+&nbsp;
+Beste Grüße
+Peter Kunde
+
+<strong>Gesendet: </strong>Dienstag, 28. April 2026 um 14:29
+<strong>Von: </strong>"Peter Kunde"
+<strong>An: </strong>service@dattenberger.com
+<strong>Betreff: </strong>Aw: Rückfrage zu Ihrer Anfrage für einen Mähroboter [T-XXXXXXXXXX-XX]
+
+Hallo Herr Dattenberger,&nbsp;
+&nbsp;
+Die Adresse ist:&nbsp;
+Musterstr. 1, 12345 Musterstadt
+&nbsp;
+Ein Video habe ich hier abgelegt:&nbsp;
+<a href="https://we.tl/t-XXXXXXXXXX" target="_blank">https://we.tl/t-XXXXXXXXXX</a>
+&nbsp;
+Herzlichen Dank und viele Grüße
+Peter Kunde
+&nbsp;
+0123-4567890
+&nbsp;
+
+</blockquote>
+
+Firma: Dattenberger Handels e.K.
+Adresse: Rudolf-Diesel-Str. 6,&nbsp;85221 Dachau
+Registergericht: Amtsgericht München, HRA 119178
+Informationen zur Datennutzung und zu Ihren Betroffenenrechten finden Sie <a href="https://dattenberger.com/datenschutz/" target="_blank">hier</a>&nbsp;und <a href="https://www.robotico.de/Datenschutz" target="_blank">hier</a>.
+    </span>
+</div>

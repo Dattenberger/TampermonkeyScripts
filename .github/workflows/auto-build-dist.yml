@@ -1,0 +1,80 @@
+name: Auto-build dist
+
+# Builds all registered userscripts on every push to any branch (incl.
+# feature branches), then commits the regenerated `pipeline/dist/` back
+# if and only if it actually changed. If the pre-commit hook already
+# produced the expected dist output locally, `git diff` is empty here →
+# no extra commit, no infinite loop.
+#
+# The `[skip ci]` marker on the auto-commit prevents this workflow (and
+# CI) from re-triggering on its own commit.
+
+on:
+  push:
+    branches:
+      - '**'
+
+concurrency:
+  group: auto-build-dist-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: pipeline
+
+jobs:
+  build:
+    name: Build & commit dist
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # The bot needs a real ref to push back to, not detached HEAD.
+          ref: ${{ github.ref_name }}
+          # Token with write scope (default GITHUB_TOKEN works for the
+          # repo's own branches; protected-branch rules still apply).
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: pipeline/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Check whether dist/ changed
+        id: dist_status
+        run: |
+          if [ ! -d dist ] || [ -z "$(ls -A dist 2>/dev/null)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No dist/ output (likely empty registry) — nothing to commit."
+            exit 0
+          fi
+          git add -N dist/
+          if git diff --quiet dist/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "dist/ matches source — nothing to commit."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "dist/ drifted from source — preparing commit."
+            git diff --stat dist/
+          fi
+
+      - name: Commit & push dist/
+        if: steps.dist_status.outputs.changed == 'true'
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dist/
+          git commit -m 'chore(dist): rebuild [skip ci]'
+          git push origin HEAD:${{ github.ref_name }}
