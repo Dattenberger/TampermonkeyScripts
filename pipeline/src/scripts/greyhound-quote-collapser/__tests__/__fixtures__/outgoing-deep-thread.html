@@ -1,14 +1,15 @@
 <!--
   REAL FIXTURE — sanitised Greyhound snippet (outgoing email with FOUR
-  nested quote levels). Provided by user; customer PII redacted:
-    Peter Kunde       → Peter Kunde
-    *@gmail.com         → peter@kunde.de
-    Musterstr. 1, 12345 Musterstadt  → Musterstr. 1, 12345 Musterstadt
-    Mobil 0174-…        → 0123-4567890
-    D-RE2025XXXXXX      → D-RE2025XXXXXX
-    D-AU2025XXXXXX      → D-AU2025XXXXXX
-    Kundennr 999999     → 999999
-    Vorgang T-XXXXXXXXXX-XX   → T-XXXXXXXXXX-XX
+  nested quote levels). Provided by user.
+
+  Sanitisation: every customer-identifying value was replaced IN PLACE with a
+  placeholder — name → "Peter Kunde", email → peter@kunde.de, address ->
+  "Musterstr. 1, 12345 Musterstadt", mobile → 0123-4567890, invoice/order
+  numbers → D-RE2025XXXXXX / D-AU2025XXXXXX, customer number → 999999,
+  Vorgang → T-XXXXXXXXXX-XX. The ORIGINAL VALUES ARE DELIBERATELY NOT
+  RECORDED HERE — listing the mapping would re-expose the very data the
+  sanitisation removes.
+
   Dattenberger/Robotico data kept verbatim (own company).
   Brevo tracking URL collapsed to https://www.robotico.de/ for readability.
 -->

@@ -16,14 +16,13 @@
   processBody. The fixture exists to lock in processBody's behaviour on
   this body shape, independently of discovery.
 
-  Sanitisation:
-    Peter Kunde          → Peter Kunde
-    peter@kunde.de  → peter@kunde.de
-    Musterstr. 1 / Musterstadt → Musterstr. 1 / Musterstadt
-    0123-4567890            → 0123-4567890
-    T-XXXXXXXXXX-XX         → T-XXXXXXXXXX-XX
-    Angebotsnummer XXXX     → XXXX
-    Google-Drive / WeTransfer share URLs → example placeholders
+  Sanitisation: every customer-identifying value was replaced IN PLACE with a
+  placeholder — name → "Peter Kunde", email → peter@kunde.de, address ->
+  "Musterstr. 1 / Musterstadt", phone → 0123-4567890, Vorgang ->
+  T-XXXXXXXXXX-XX, Angebotsnummer → XXXX, and Google-Drive / WeTransfer
+  share URLs → example placeholders. The ORIGINAL VALUES ARE DELIBERATELY
+  NOT RECORDED HERE — listing the mapping would re-expose the very data the
+  sanitisation removes.
   Dattenberger / Robotico data kept verbatim (selectors / signature parsing).
 -->
 <div class="chatView__itemContent___015d883e">
