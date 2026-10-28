@@ -30,6 +30,10 @@ mfr-kd-auftragsformatter.js               Auftragsformatter for MFR portal
 weborder.js / weborder_v2.js              Weborder helpers
 ```
 
+`tools/husqvarna-reimport/` is a local Python CLI, not a userscript: it turns a Husqvarna SAP
+order export into the Ameise CSV of the orders exporter when the portal export fails
+(see its README).
+
 Install via Tampermonkey using the file's raw GitHub URL.
 
 ## `pipeline/` — TypeScript build pipeline

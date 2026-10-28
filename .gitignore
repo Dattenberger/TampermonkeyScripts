@@ -8,3 +8,5 @@ coverage/
 .vscode/
 
 weborder-test.js
+worktrees/
+__pycache__/
