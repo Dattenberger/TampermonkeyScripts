@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.4.7
+// @version      2.4.8
 // @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status (Refactored)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -41,10 +41,11 @@
                 text-transform: uppercase;
             }
 
+            /* Hoverable so the retry reason in the tooltip shows; the click handler ignores loading buttons */
             a.export-btn.loading {
                 background: #6f6f6f;
                 color: white;
-                pointer-events: none;
+                cursor: progress;
             }
 
             a.export-btn.queued {
@@ -744,6 +745,10 @@
     function shouldRetryError(error) {
         const message = error.message || '';
 
+        // The portal named its own failure (e.g. "Error trying to resolve field 'get'.");
+        // it is often transient, so it is retried like a server error
+        if (error.name === 'PortalGraphQLError') return true;
+
         // Retry on network errors and server errors
         if (error.name === 'NetworkError' || message.includes('Failed to fetch')) return true;
         if (message.includes('GraphQL: leere Antwort')) return true;
@@ -771,6 +776,10 @@
         console.error(`Export error for order ${orderNumber}:`, error);
 
         const orderContext = `Bestellung ${orderNumber}: `;
+
+        if (error.name === 'PortalGraphQLError') {
+            return orderContext + `Fehler im Husqvarna-Portal, nicht im Skript: ${error.portalMessage.replace(/\.$/, '')}. Bitte später erneut versuchen.`;
+        }
 
         if (error.name === 'NetworkError' || error.message.includes('Failed to fetch')) {
             return orderContext + 'Netzwerkfehler - bitte Internetverbindung prüfen';
@@ -838,6 +847,16 @@
             const order = json?.data?.site?.commerce?.orders?.get;
 
             if (!order) {
+                // HTTP 200 with errors[]: the portal could not resolve the order (seen for
+                // some partly delivered orders, 2026-10). Carry its message instead of the
+                // generic "leere Antwort", so retries and the final error can name it.
+                const portalMessage = json?.errors?.[0]?.message;
+                if (portalMessage) {
+                    const portalError = new Error(`Portal-Fehler: ${portalMessage}`);
+                    portalError.name = 'PortalGraphQLError';
+                    portalError.portalMessage = portalMessage;
+                    throw portalError;
+                }
                 throw new Error('GraphQL: leere Antwort');
             }
 
@@ -981,11 +1000,48 @@
 
 
     /**
+     * Shows a reason on the button's tooltip; the original tooltip is kept to be restored
+     * on the next manual click (the button text only has room for "Fehler!")
+     * @param {jQuery} $btn - The export button
+     * @param {string} reason - The text to show on hover
+     */
+    function setButtonReason($btn, reason) {
+        if ($btn.attr('data-original-title') === undefined) {
+            $btn.attr('data-original-title', $btn.attr('title') || '');
+        }
+        $btn.attr('title', reason);
+    }
+
+    /**
+     * Restores the tooltip {@link setButtonReason} replaced, if any
+     * @param {jQuery} $btn - The export button
+     */
+    function clearButtonReason($btn) {
+        if ($btn.attr('data-original-title') !== undefined) {
+            $btn.attr('title', $btn.attr('data-original-title')).removeAttr('data-original-title');
+        }
+    }
+
+    /**
+     * Describes why a retry runs, for the tooltip and status label while it runs
+     * @param {Error} error - The error of the failed previous attempt
+     * @param {number} attempt - The attempt now in flight (1-based), matching the button's "(n)"
+     * @returns {string} The reason shown while the next attempt runs
+     */
+    function describeRetryReason(error, attempt) {
+        const counter = `(${attempt}/${Config.download.MAX_RETRY_ATTEMPTS})`;
+        if (error.name === 'PortalGraphQLError') {
+            return `Portal-Fehler ${counter}: ${error.portalMessage.replace(/\.$/, '')}. Der Fehler liegt beim Husqvarna-Portal; Versuch läuft.`;
+        }
+        return `Fehler ${counter}: ${error.message || 'Unbekannter Fehler'}. Versuch läuft.`;
+    }
+
+    /**
      * Starts the actual download process for a queue item with retry support
      * @param {Object} queueItem - Queue item containing all download data
      */
     async function startDownload(queueItem) {
-        const { orderNumber, siteName, filename, $btn, iconSelector, textSelector, retryAttempt = 1, isCustomOrderInput = false } = queueItem;
+        const { orderNumber, siteName, filename, $btn, iconSelector, textSelector, retryAttempt = 1, isCustomOrderInput = false, retryReason = '' } = queueItem;
 
         // Start loading state with retry indicator
         const buttonId = getButtonId(orderNumber);
@@ -1000,10 +1056,13 @@
             const loadingText = retryAttempt >= 2 ? `${Config.ui.LOADING_TEXT} (${retryAttempt})` : Config.ui.LOADING_TEXT;
             $text.text(loadingText);
         }
+        if (retryReason) {
+            setButtonReason($btn, retryReason);
+        }
 
         // Update status display if this is from custom order input
         if (isCustomOrderInput) {
-            const loadingMsg = retryAttempt >= 2 ? `Lädt... (Versuch ${retryAttempt})` : 'Lädt...';
+            const loadingMsg = retryReason || (retryAttempt >= 2 ? `Lädt... (Versuch ${retryAttempt})` : 'Lädt...');
             updateStatusItem(orderNumber, 'loading', loadingMsg);
         }
 
@@ -1024,6 +1083,7 @@
             setTimeout(() => URL.revokeObjectURL(url), Config.timing.URL_CLEANUP_DELAY);
 
             // Show success state permanently
+            clearButtonReason($btn);
             $btn.removeClass('loading').addClass('success').attr('data-success-state', 'true');
             $icon.html('<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>');
             if ($text.length > 0) {
@@ -1048,7 +1108,7 @@
 
                 // Schedule retry
                 setTimeout(() => {
-                    const retryQueueItem = { ...queueItem, retryAttempt: nextAttempt };
+                    const retryQueueItem = { ...queueItem, retryAttempt: nextAttempt, retryReason: describeRetryReason(error, nextAttempt) };
                     startDownload(retryQueueItem);
                 }, delay);
 
@@ -1058,6 +1118,7 @@
             // Max retries reached or non-retryable error
             const userMessage = handleExportError(error, orderNumber);
             State.retryCounters.delete(orderNumber);
+            setButtonReason($btn, userMessage);
 
             // Show error state permanently with red highlighting
             $btn.removeClass('loading').addClass('error').attr('data-error-state', 'true');
@@ -1069,7 +1130,7 @@
 
             // Update status display if this is from custom order input
             if (isCustomOrderInput) {
-                updateStatusItem(orderNumber, 'error', error.message || 'Fehler beim Download');
+                updateStatusItem(orderNumber, 'error', userMessage);
             }
 
             // Error is now only shown visually with red button
@@ -1105,14 +1166,15 @@
         return async (e) => {
             e.preventDefault();
 
-            // Check if already downloading this order
-            if (State.activeDownloads.has(orderNumber)) {
+            // Check if already downloading this order (loading also covers the backoff between retries)
+            if (State.activeDownloads.has(orderNumber) || $btn.hasClass('loading')) {
                 return; // Silently ignore if already in progress
             }
 
             // If button is in error or queued state, reset to original state and continue with download
             if ($btn.hasClass('error') || $btn.attr('data-error-state') === 'true') {
                 $btn.removeClass('error').removeAttr('data-error-state');
+                clearButtonReason($btn);
                 // Clear retry counter for new manual attempt
                 State.retryCounters.delete(orderNumber);
             }
@@ -1322,6 +1384,8 @@
 
         // Update class
         item.className = `datte-download-status-item status-${status}`;
+        // The label shows only number and icon; hover shows the message (e.g. the error reason)
+        item.title = message || '';
 
         // Update icon
         const iconElement = item.querySelector('.datte-download-status-icon');
