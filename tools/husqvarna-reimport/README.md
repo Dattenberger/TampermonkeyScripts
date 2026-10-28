@@ -66,10 +66,10 @@ falling back to the supplier article's VPE.
 
 1. `<Vertriebsbeleg>-ameise.csv`: byte format of the userscript (jquery-csv `fromObjects`,
    separator `;`, `"` only where needed, header row, LF, UTF-8 without BOM), columns in its order.
-2. `gegenprobe.md`: line counts, quantity and value sums, the base-order positions found, every
+2. `<Vertriebsbeleg>-gegenprobe.md`: line counts, quantity and value sums, the base-order positions found, every
    discrepancy (blockers, warnings, notes), VPE lines, and the EK against the latest earlier
    reimport of each HAN.
-3. `jtl-snapshot.json`: the JTL data the run used, so a result can be checked later.
+3. `<Vertriebsbeleg>-jtl-snapshot.json`: the JTL data the run used, so a result can be checked later.
 
 ## 3. Running it
 
@@ -81,8 +81,10 @@ python3 -I tools/husqvarna-reimport/husq_reimport.py \
   --out-dir ~/data/work/lukas/<date>-husqvarna-ameise
 ```
 
-- `--base-order D-BE<n>` when the SAP `Bestellnummer` does not end in `-I`.
-- `--out-dir` defaults to `~/data/work/lukas/<today>-husqvarna-ameise`.
+- `--base-order D-BE<n>` when the SAP `Bestellnummer` does not end in `-I`; the CSV still names
+  the reimport order `D-BE<n>-I`.
+- `--out-dir` defaults to `~/data/work/lukas/<today>-husqvarna-ameise`; several orders can share
+  it, every file carries the Vertriebsbeleg.
 - Environment: `HUSQ_SQLCMD`, `HUSQ_SQL_SERVER`, `HUSQ_SQL_DATABASE` override the sqlcmd binary,
   server and database; `KRB5CCNAME` defaults to `FILE:/tmp/krb5cc_1000`.
 - JTL is only read: single SELECTs; inlined values are validated (`D-BE<digits>`, numeric HANs).
@@ -91,10 +93,10 @@ python3 -I tools/husqvarna-reimport/husq_reimport.py \
 |---|---|
 | 0 | files written, no blocker |
 | 2 | bad input (file shape, base order not found) |
-| 3 | files written, but a blocker exists (unknown HAN, ambiguous HAN, `-I` already in JTL) — do not import as is |
+| 3 | files written, but a blocker exists (HAN without supplier article, HAN shared by several articles, `-I` already in JTL) — do not import as is |
 | 4 | JTL lookup failed (Kerberos ticket, network) |
 
-Read `gegenprobe.md` before importing. Warnings name lines Husqvarna changed (quantity,
+Read the Gegenprobe before importing. Warnings name lines Husqvarna changed (quantity,
 substituted article, added line) — decide whether they stay.
 
 ### 3.1 Import in JTL-Ameise
@@ -112,7 +114,7 @@ substituted article, added line) — decide whether they stay.
 | Column | Userscript (portal) | This tool (SAP export + JTL) |
 |---|---|---|
 | HAN | article no., leading zeros stripped | `Material` digits, zeros stripped; if unknown, its last 9 digits |
-| Interne Bestellnummer | customer order no., first 14 chars | `Bestellnummer`, first 14 chars |
+| Interne Bestellnummer | customer order no., first 14 chars | `<base order>-I`, first 14 chars (the SAP `Bestellnummer` normally is exactly that) |
 | Artikelnummer | from the comment | base position, else supplier article |
 | Lieferantenbezeichnung | name + description | `Bezeichnung` |
 | menge | (delivered or requested) × VPE | (`Warenausgangsmenge` if > 0, else `Bestätigte Menge`) × VPE |

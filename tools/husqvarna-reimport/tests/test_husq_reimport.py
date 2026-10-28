@@ -97,7 +97,7 @@ class TransformTest(unittest.TestCase):
         lines = lines_of(sap_row(10, "00059-12.345.67", "Luftfilter", 3, "7.83"))
         result = transform.transform(
             lines, [OrderPosition(1, 11, "4711", "591234567", 3, 0)],
-            [SupplierArticle(11, "4711", "591234567", 0)])
+            [SupplierArticle(11, "4711", "591234567", 0)], "D-BE20990001-I")
         self.assertEqual(result.rows, [{
             "HAN": "591234567", "Interne Bestellnummer": "D-BE20990001-I", "Artikelnummer": "4711",
             "Lieferantenbezeichnung": "Luftfilter", "menge": "3", "EK netto": "2,5317",
@@ -108,7 +108,7 @@ class TransformTest(unittest.TestCase):
         lines = lines_of(sap_row(10, "00057-77.537.01", "Messer 10er", 4, "100"))
         result = transform.transform(
             lines, [OrderPosition(1, 12, "4712", "577753701", 40, 10)],
-            [SupplierArticle(12, "4712", "577753701", 10)])
+            [SupplierArticle(12, "4712", "577753701", 10)], "D-BE20990001-I")
         self.assertEqual(result.rows[0]["menge"], "40")
         self.assertEqual(result.rows[0]["EK netto"], "2,4250")
         self.assertEqual(result.warnings, [])
@@ -117,7 +117,7 @@ class TransformTest(unittest.TestCase):
         lines = lines_of(sap_row(10, "00057-77.537.01", "Messer 10er", 4, "100"))
         result = transform.transform(
             lines, [OrderPosition(1, 12, "4712", "577753701", 4, 0)],
-            [SupplierArticle(12, "4712", "577753701", 10)])
+            [SupplierArticle(12, "4712", "577753701", 10)], "D-BE20990001-I")
         self.assertEqual(result.rows[0]["menge"], "40")
         self.assertIn("VPE differs", result.warnings[0].message)
 
@@ -125,7 +125,7 @@ class TransformTest(unittest.TestCase):
         lines = lines_of(sap_row(10, "62550-53.051.25", "Starterseil", 1, "2"))
         result = transform.transform(
             lines, [OrderPosition(1, 13, "4713", "505305125", 1, 0)],
-            [SupplierArticle(13, "4713", "505305125", 0)])
+            [SupplierArticle(13, "4713", "505305125", 0)], "D-BE20990001-I")
         self.assertEqual(result.rows[0]["HAN"], "505305125")
         self.assertIn("prefix", result.notes[0].message)
 
@@ -133,14 +133,14 @@ class TransformTest(unittest.TestCase):
         lines = lines_of(sap_row(10, "00059-12.345.67", "A", 1, "1"), sap_row(20, "00053-10.177.15", "Messer", 30, "9"))
         result = transform.transform(
             lines, [OrderPosition(1, 11, "4711", "591234567", 1, 0)],
-            [SupplierArticle(11, "4711", "591234567", 0), SupplierArticle(14, "4714", "531017715", 0)])
+            [SupplierArticle(11, "4711", "591234567", 0), SupplierArticle(14, "4714", "531017715", 0)], "D-BE20990001-I")
         self.assertEqual(result.rows[1]["Artikelnummer"], "4714")
         self.assertEqual(result.rows[1]["menge"], "30")
         self.assertEqual([w.message for w in result.warnings], ["no position in the base order; added by Husqvarna"])
 
     def test_unknown_han_is_a_blocker(self):
         lines = lines_of(sap_row(10, "00059-99.999.99", "Neu", 1, "1"))
-        result = transform.transform(lines, [], [])
+        result = transform.transform(lines, [], [], "D-BE20990001-I")
         self.assertEqual(len(result.blockers), 1)
 
     def test_changed_quantity_open_line_and_missing_position_are_reported(self):
@@ -148,13 +148,37 @@ class TransformTest(unittest.TestCase):
                                  dispatch="", issue_date="46330"))
         result = transform.transform(
             lines, [OrderPosition(1, 11, "4711", "591234567", 1, 0), OrderPosition(2, 15, "4715", "591111111", 1, 0)],
-            [SupplierArticle(11, "4711", "591234567", 0)])
+            [SupplierArticle(11, "4711", "591234567", 0)], "D-BE20990001-I")
         self.assertEqual(result.rows[0]["menge"], "10")
         self.assertEqual(result.rows[0]["Lieferdatum"], "04.11.2026")
         messages = [w.message for w in result.warnings]
         self.assertIn("quantity changed by Husqvarna: sent 1, confirmed 10", messages)
         self.assertIn("base order position missing from the SAP export", messages)
         self.assertIn("not yet shipped", result.notes[0].message)
+
+    def test_han_shared_by_several_articles_blocks_even_with_matching_position(self):
+        lines = lines_of(sap_row(10, "00059-12.345.67", "Filter", 1, "1"))
+        result = transform.transform(
+            lines, [OrderPosition(1, 11, "4711", "591234567", 1, 0)],
+            [SupplierArticle(11, "4711", "591234567", 0), SupplierArticle(16, "4716", "591234567", 0)],
+            "D-BE20990001-I")
+        self.assertIn("several articles", result.blockers[0].message)
+
+    def test_han_only_known_from_base_position_blocks(self):
+        lines = lines_of(sap_row(10, "00059-12.345.67", "Filter", 1, "1"))
+        result = transform.transform(
+            lines, [OrderPosition(1, 11, "4711", "591234567", 1, 0)], [], "D-BE20990001-I")
+        self.assertIn("not found as supplier article", result.blockers[0].message)
+
+    def test_reimport_order_number_comes_from_the_base_order(self):
+        row = sap_row(10, "00059-12.345.67", "Filter", 1, "1")
+        row[5] = "D-BE20990001"
+        lines = lines_of(row)
+        result = transform.transform(
+            lines, [OrderPosition(1, 11, "4711", "591234567", 1, 0)],
+            [SupplierArticle(11, "4711", "591234567", 0)], "D-BE20990001-I")
+        self.assertEqual(result.rows[0]["Interne Bestellnummer"], "D-BE20990001-I")
+        self.assertIn("CSV uses the reimport order", result.notes[0].message)
 
     def test_rejects_mixed_orders_and_missing_columns(self):
         row = sap_row(10, "00059-12.345.67", "A", 1, "1")
@@ -192,6 +216,7 @@ class CliTest(unittest.TestCase):
         if "FROM dbo.tliefartikel" in sql:
             return "11|4711|591234567|.0000\n"
         if "ROW_NUMBER()" in sql:
+            assert "<> 'D-BE20990001-I'" in sql  # never compare with the reimport being generated
             return "591234567|D-BE20990000-I|2.5317\n"
         raise AssertionError(sql)
 
@@ -205,10 +230,10 @@ class CliTest(unittest.TestCase):
             csv = (out / "9000000001-ameise.csv").read_text(encoding="utf-8")
             self.assertEqual(csv.splitlines()[1],
                              "591234567;D-BE20990001-I;4711;Luftfilter;3;2,5317;27.10.2026;N;9000000001")
-            report = (out / "gegenprobe.md").read_text(encoding="utf-8")
+            report = (out / "9000000001-gegenprobe.md").read_text(encoding="utf-8")
             self.assertIn("| Zeilen SAP / CSV | 1 / 1 |", report)
             self.assertIn("1 / 1 / 0 |", report)
-            self.assertTrue((out / "jtl-snapshot.json").exists())
+            self.assertTrue((out / "9000000001-jtl-snapshot.json").exists())
 
     def test_existing_reimport_order_returns_3(self):
         def run(sql):
@@ -219,6 +244,29 @@ class CliTest(unittest.TestCase):
             xlsx = Path(tmp) / "export.xlsx"
             write_xlsx(xlsx, [HEADER, sap_row(10, "00059-12.345.67", "Luftfilter", 3, "7.83")])
             self.assertEqual(husq_reimport.main([str(xlsx), "--out-dir", str(Path(tmp) / "o")], run=run), 3)
+
+    def test_base_order_option_names_the_reimport_order(self):
+        row = sap_row(10, "00059-12.345.67", "Luftfilter", 3, "7.83")
+        row[5] = "freier Text"
+        with tempfile.TemporaryDirectory() as tmp:
+            xlsx = Path(tmp) / "export.xlsx"
+            write_xlsx(xlsx, [HEADER, row])
+            out = Path(tmp) / "out"
+            self.assertEqual(husq_reimport.main([str(xlsx), "--out-dir", str(out)], run=self.fake_run), 2)
+            code = husq_reimport.main([str(xlsx), "--out-dir", str(out), "--base-order", "D-BE20990001"],
+                                      run=self.fake_run)
+            self.assertEqual(code, 0)
+            line = (out / "9000000001-ameise.csv").read_text(encoding="utf-8").splitlines()[1]
+            self.assertEqual(line.split(";")[1], "D-BE20990001-I")
+
+    def test_sqlcmd_that_cannot_run_is_a_jtl_error(self):
+        from unittest import mock
+        with mock.patch.object(jtl.subprocess, "run", side_effect=jtl.subprocess.TimeoutExpired("sqlcmd", 120)):
+            with self.assertRaises(jtl.JtlError):
+                jtl.sqlcmd_runner("SELECT 1")
+        with mock.patch.object(jtl.subprocess, "run", side_effect=FileNotFoundError("sqlcmd")):
+            with self.assertRaises(jtl.JtlError):
+                jtl.sqlcmd_runner("SELECT 1")
 
     def test_sql_inputs_are_validated(self):
         with self.assertRaises(jtl.JtlError):

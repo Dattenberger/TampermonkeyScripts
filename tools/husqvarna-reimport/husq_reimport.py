@@ -3,8 +3,9 @@
 
 Usage: python3 -I husq_reimport.py <export.xlsx> [--out-dir DIR] [--base-order D-BE…]
 
-Writes into DIR: `<Vertriebsbeleg>-ameise.csv` (the import file), `gegenprobe.md` (counts,
-sums, every discrepancy) and `jtl-snapshot.json` (the JTL data the run used).
+Writes into DIR, named after the SAP Vertriebsbeleg: `<Vertriebsbeleg>-ameise.csv` (the import
+file), `<Vertriebsbeleg>-gegenprobe.md` (counts, sums, every discrepancy) and
+`<Vertriebsbeleg>-jtl-snapshot.json` (the JTL data the run used).
 Exit codes: 0 ok · 2 bad input · 3 blockers found (files written, do not import as is) ·
 4 JTL lookup failed. See README.md.
 """
@@ -55,7 +56,7 @@ def gegenprobe(sap_lines, base, existing_reimport, positions, result, csv_name) 
         "| Prüfung | Wert |",
         "|---|---|",
         f"| Basisbestellung | {base.number} (k={base.k_order}, Status {base.status}) |",
-        f"| Reimport-Bestellung `{sap_lines[0].order_reference}` schon in JTL | "
+        f"| Reimport-Bestellung `{base.number}-I` schon in JTL | "
         f"{'JA – Import würde doppeln' if existing_reimport else 'nein'} |",
         f"| Zeilen SAP / CSV | {len(sap_lines)} / {len(rows)} |",
         f"| Positionen Basisbestellung / davon in SAP gefunden | {len(positions)} / {result.matched_positions} |",
@@ -123,23 +124,25 @@ def main(argv: list[str] | None = None, run: jtl.Runner = jtl.sqlcmd_runner) -> 
         if base is None:
             print(f"husq-reimport: base order {base_number} not found in JTL", file=sys.stderr)
             return 2
-        existing = jtl.find_order_numbers(run, f"{base.number}-I")
+        reimport = f"{base.number}-I"
+        existing = jtl.find_order_numbers(run, reimport)
         positions = jtl.load_positions(run, base.k_order)
         hans = sorted({c for l in sap_lines for c in transform.han_candidates(l.material)}
                       | {p.supplier_article_number for p in positions if p.supplier_article_number.isdigit()})
         articles = jtl.load_supplier_articles(run, base.k_supplier, hans)
-        previous = jtl.load_previous_prices(run, base.k_supplier, hans)
+        previous = jtl.load_previous_prices(run, base.k_supplier, hans, reimport)
     except jtl.JtlError as error:
         print(f"husq-reimport: JTL: {error}", file=sys.stderr)
         return 4
 
-    result = transform.transform(sap_lines, positions, articles, previous)
+    result = transform.transform(sap_lines, positions, articles, reimport, previous)
 
     out_dir = args.out_dir or _default_out_dir()
     out_dir.mkdir(parents=True, exist_ok=True)
-    csv_name = f"{sap_lines[0].sales_document}-ameise.csv"
+    stem = sap_lines[0].sales_document  # one order per run; several orders may share the folder
+    csv_name = f"{stem}-ameise.csv"
     (out_dir / csv_name).write_text(transform.to_csv(result.rows), encoding="utf-8", newline="")
-    (out_dir / "gegenprobe.md").write_text(
+    (out_dir / f"{stem}-gegenprobe.md").write_text(
         gegenprobe(sap_lines, base, existing, positions, result, csv_name), encoding="utf-8")
     snapshot = {
         "base_order": dataclasses.asdict(base),
@@ -148,10 +151,10 @@ def main(argv: list[str] | None = None, run: jtl.Runner = jtl.sqlcmd_runner) -> 
         "supplier_articles": [dataclasses.asdict(a) for a in articles],
         "previous_prices": [dataclasses.asdict(p) for p in previous],
     }
-    (out_dir / "jtl-snapshot.json").write_text(json.dumps(snapshot, indent=1, ensure_ascii=False), encoding="utf-8")
+    (out_dir / f"{stem}-jtl-snapshot.json").write_text(json.dumps(snapshot, indent=1, ensure_ascii=False), encoding="utf-8")
 
     print(f"{out_dir / csv_name}: {len(result.rows)} rows; blockers {len(result.blockers)}, "
-          f"warnings {len(result.warnings)}, notes {len(result.notes)}; see gegenprobe.md")
+          f"warnings {len(result.warnings)}, notes {len(result.notes)}; see {stem}-gegenprobe.md")
     if existing:
         print(f"husq-reimport: {base.number}-I already exists in JTL", file=sys.stderr)
     return 3 if result.blockers or existing else 0

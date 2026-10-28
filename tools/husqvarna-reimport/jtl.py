@@ -69,7 +69,10 @@ def sqlcmd_runner(sql: str) -> str:
         "-E", "-C", "-I", "-b", "-W", "-h", "-1", "-s", _SEPARATOR,
         "-Q", "SET NOCOUNT ON; " + sql,
     ]
-    result = subprocess.run(command, capture_output=True, text=True, env=env, timeout=120)
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, env=env, timeout=120)
+    except (subprocess.TimeoutExpired, OSError) as error:
+        raise JtlError(f"sqlcmd did not run: {error}") from error
     if result.returncode != 0:
         raise JtlError(f"sqlcmd exit {result.returncode}: {(result.stderr or result.stdout).strip()}")
     return result.stdout
@@ -152,10 +155,13 @@ def load_supplier_articles(run: Runner, k_supplier: int, hans: list[str]) -> lis
     return [SupplierArticle(int(k), _text(art), _text(han), _number(vpe)) for k, art, han, vpe in rows]
 
 
-def load_previous_prices(run: Runner, k_supplier: int, hans: list[str]) -> list[PreviousPrice]:
-    """The EK of each HAN in the newest earlier reimport order (`D-BE…-I`) of this supplier."""
+def load_previous_prices(run: Runner, k_supplier: int, hans: list[str], exclude_order: str) -> list[PreviousPrice]:
+    """The EK of each HAN in the newest reimport order (`D-BE…-I`) of this supplier other than
+    `exclude_order`, the reimport being generated (it may exist from an earlier import)."""
     if not hans:
         return []
+    if not re.match(r"^D-BE\d+-I$", exclude_order):
+        raise JtlError(f"unexpected reimport order number {exclude_order!r}")
     rows = _rows(run(
         "SELECT han, cEigeneBestellnummer, CAST(fEKNetto AS decimal(18,4)) FROM ("
         "SELECT LTRIM(RTRIM(p.cLieferantenArtNr)) AS han, b.cEigeneBestellnummer, p.fEKNetto, "
@@ -165,6 +171,7 @@ def load_previous_prices(run: Runner, k_supplier: int, hans: list[str]) -> list[
         "JOIN dbo.tLieferantenBestellung b ON b.kLieferantenBestellung = p.kLieferantenBestellung "
         f"WHERE b.kLieferant = {int(k_supplier)} AND b.nDeleted = 0 "
         "AND b.cEigeneBestellnummer LIKE 'D-BE%-I' "
+        f"AND b.cEigeneBestellnummer <> '{exclude_order}' "
         f"AND LTRIM(RTRIM(p.cLieferantenArtNr)) IN ({_han_list(hans)})"
         ") x WHERE rn = 1"
     ))

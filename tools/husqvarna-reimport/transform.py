@@ -9,7 +9,7 @@ SAP exports lack that comment, so this module takes both from the JTL base order
 | Column                 | Userscript (portal)                     | Here (SAP export + JTL)                         |
 |------------------------|-----------------------------------------|-------------------------------------------------|
 | HAN                    | article no., leading zeros stripped     | Material, digits, resolved against tliefartikel |
-| Interne Bestellnummer  | customer order no., first 14 chars      | Bestellnummer, first 14 chars                   |
+| Interne Bestellnummer  | customer order no., first 14 chars      | `<base order>-I`, first 14 chars                |
 | Artikelnummer          | from the comment                        | base order position, else tliefartikel          |
 | Lieferantenbezeichnung | article name + description              | Bezeichnung                                     |
 | menge                  | (delivered or requested) x VPE          | (Warenausgangsmenge or Bestätigte Menge) x VPE  |
@@ -152,8 +152,10 @@ def transform(
     lines: list[SapLine],
     positions: list[OrderPosition],
     supplier_articles: list[SupplierArticle],
+    reimport_order: str,
     previous_prices: list[PreviousPrice] = (),
 ) -> Result:
+    """`reimport_order` is the order the import creates (`<base>-I`), whatever SAP calls it."""
     by_sort = {p.sort: p for p in positions}
     articles_by_han: dict[str, list[SupplierArticle]] = defaultdict(list)
     for article in supplier_articles:
@@ -162,6 +164,9 @@ def transform(
 
     result = Result(rows=[])
     used_positions: set[int] = set()
+    if lines and lines[0].order_reference != reimport_order:
+        result.notes.append(Finding(0, "", "", f"SAP Bestellnummer {lines[0].order_reference}; "
+                                               f"CSV uses the reimport order {reimport_order}"))
 
     for line in sorted(lines, key=lambda l: l.position):  # base order sequence
         def finding(message: str) -> Finding:
@@ -171,8 +176,6 @@ def transform(
         candidates = han_candidates(line.material)
         han = next((c for c in candidates if c in articles_by_han), None)
 
-        if han is None and position and position.supplier_article_number in candidates:
-            han = position.supplier_article_number
         if han is None:
             result.blockers.append(finding(
                 f"HAN {'/'.join(candidates)} not found as supplier article; Ameise would reject the line"))
@@ -191,7 +194,7 @@ def transform(
                     f"(article {position.article_number}); Husqvarna delivered {han} instead"))
         else:
             result.warnings.append(finding("no position in the base order; added by Husqvarna"))
-        if article is None and len(matches) > 1:
+        if len(matches) > 1:  # Ameise resolves by HAN alone and cannot be told which article
             result.blockers.append(finding(
                 f"HAN {han} belongs to several articles ({', '.join(a.article_number for a in matches)})"))
         if article is None and matches:
@@ -222,7 +225,7 @@ def transform(
         article_number = position.article_number if position else (article.article_number if article else "")
         result.rows.append({
             "HAN": han,
-            "Interne Bestellnummer": line.order_reference[:INTERNAL_ORDER_MAX],
+            "Interne Bestellnummer": reimport_order[:INTERNAL_ORDER_MAX],
             "Artikelnummer": article_number,
             "Lieferantenbezeichnung": line.description,
             "menge": format_quantity(quantity),
