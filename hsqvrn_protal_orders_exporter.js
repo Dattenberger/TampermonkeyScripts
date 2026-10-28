@@ -41,10 +41,11 @@
                 text-transform: uppercase;
             }
 
+            /* Hoverable so the retry reason in the tooltip shows; the click handler ignores loading buttons */
             a.export-btn.loading {
                 background: #6f6f6f;
                 color: white;
-                pointer-events: none;
+                cursor: progress;
             }
 
             a.export-btn.queued {
@@ -1022,17 +1023,17 @@
     }
 
     /**
-     * Describes a failed attempt that will be retried, e.g. for the tooltip during retries
-     * @param {Error} error - The error of the failed attempt
-     * @param {number} attempt - The failed attempt (1-based)
+     * Describes why a retry runs, for the tooltip and status label while it runs
+     * @param {Error} error - The error of the failed previous attempt
+     * @param {number} attempt - The attempt now in flight (1-based), matching the button's "(n)"
      * @returns {string} The reason shown while the next attempt runs
      */
     function describeRetryReason(error, attempt) {
         const counter = `(${attempt}/${Config.download.MAX_RETRY_ATTEMPTS})`;
         if (error.name === 'PortalGraphQLError') {
-            return `Portal-Fehler ${counter}: ${error.portalMessage.replace(/\.$/, '')}. Der Fehler liegt beim Husqvarna-Portal; neuer Versuch läuft.`;
+            return `Portal-Fehler ${counter}: ${error.portalMessage.replace(/\.$/, '')}. Der Fehler liegt beim Husqvarna-Portal; Versuch läuft.`;
         }
-        return `Fehler ${counter}: ${error.message || 'Unbekannter Fehler'}. Neuer Versuch läuft.`;
+        return `Fehler ${counter}: ${error.message || 'Unbekannter Fehler'}. Versuch läuft.`;
     }
 
     /**
@@ -1107,7 +1108,7 @@
 
                 // Schedule retry
                 setTimeout(() => {
-                    const retryQueueItem = { ...queueItem, retryAttempt: nextAttempt, retryReason: describeRetryReason(error, retryAttempt) };
+                    const retryQueueItem = { ...queueItem, retryAttempt: nextAttempt, retryReason: describeRetryReason(error, nextAttempt) };
                     startDownload(retryQueueItem);
                 }, delay);
 
@@ -1165,8 +1166,8 @@
         return async (e) => {
             e.preventDefault();
 
-            // Check if already downloading this order
-            if (State.activeDownloads.has(orderNumber)) {
+            // Check if already downloading this order (loading also covers the backoff between retries)
+            if (State.activeDownloads.has(orderNumber) || $btn.hasClass('loading')) {
                 return; // Silently ignore if already in progress
             }
 
