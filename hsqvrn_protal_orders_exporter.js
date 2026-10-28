@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.4.7
+// @version      2.4.8
 // @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status (Refactored)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
@@ -744,6 +744,9 @@
     function shouldRetryError(error) {
         const message = error.message || '';
 
+        // The portal answered and named its own failure; asking again repeats it
+        if (error.name === 'PortalGraphQLError') return false;
+
         // Retry on network errors and server errors
         if (error.name === 'NetworkError' || message.includes('Failed to fetch')) return true;
         if (message.includes('GraphQL: leere Antwort')) return true;
@@ -771,6 +774,10 @@
         console.error(`Export error for order ${orderNumber}:`, error);
 
         const orderContext = `Bestellung ${orderNumber}: `;
+
+        if (error.name === 'PortalGraphQLError') {
+            return orderContext + `Husqvarna-Portal liefert die Bestelldetails nicht (${error.message}). Bitte später erneut versuchen; bleibt der Fehler, liegt er beim Portal.`;
+        }
 
         if (error.name === 'NetworkError' || error.message.includes('Failed to fetch')) {
             return orderContext + 'Netzwerkfehler - bitte Internetverbindung prüfen';
@@ -838,6 +845,15 @@
             const order = json?.data?.site?.commerce?.orders?.get;
 
             if (!order) {
+                // HTTP 200 with errors[]: the portal could not resolve the order (seen for
+                // some partly delivered orders, 2026-10). Surface its message instead of
+                // the generic "leere Antwort", which would be retried five times in vain.
+                const portalMessage = json?.errors?.[0]?.message;
+                if (portalMessage) {
+                    const portalError = new Error(`Portal-Fehler: ${portalMessage}`);
+                    portalError.name = 'PortalGraphQLError';
+                    throw portalError;
+                }
                 throw new Error('GraphQL: leere Antwort');
             }
 
@@ -1058,6 +1074,11 @@
             // Max retries reached or non-retryable error
             const userMessage = handleExportError(error, orderNumber);
             State.retryCounters.delete(orderNumber);
+            // Hover shows the reason; the button text only has room for "Fehler!"
+            if ($btn.attr('data-original-title') === undefined) {
+                $btn.attr('data-original-title', $btn.attr('title') || '');
+            }
+            $btn.attr('title', userMessage);
 
             // Show error state permanently with red highlighting
             $btn.removeClass('loading').addClass('error').attr('data-error-state', 'true');
@@ -1113,6 +1134,9 @@
             // If button is in error or queued state, reset to original state and continue with download
             if ($btn.hasClass('error') || $btn.attr('data-error-state') === 'true') {
                 $btn.removeClass('error').removeAttr('data-error-state');
+                if ($btn.attr('data-original-title') !== undefined) {
+                    $btn.attr('title', $btn.attr('data-original-title')).removeAttr('data-original-title');
+                }
                 // Clear retry counter for new manual attempt
                 State.retryCounters.delete(orderNumber);
             }
