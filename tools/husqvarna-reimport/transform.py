@@ -238,6 +238,7 @@ def transform(
         result.lines.append({
             "position": line.position, "han": han, "vpe": vpe, "quantity": quantity, "ek": round(ek, 4),
             "previous_ek": last.ek_net if last else None, "previous_order": last.order_number if last else None,
+            "base_ek": position.ek_net if position else None,
         })
 
     result.matched_positions = len(used_positions)

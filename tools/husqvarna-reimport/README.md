@@ -67,8 +67,9 @@ falling back to the supplier article's VPE.
 1. `<Vertriebsbeleg>-ameise.csv`: byte format of the userscript (jquery-csv `fromObjects`,
    separator `;`, `"` only where needed, header row, LF, UTF-8 without BOM), columns in its order.
 2. `<Vertriebsbeleg>-gegenprobe.md`: line counts, quantity and value sums, the base-order positions found, every
-   discrepancy (blockers, warnings, notes), VPE lines, and the EK against the latest earlier
-   reimport of each HAN.
+   discrepancy (blockers, warnings, notes), VPE lines, the EK against the base order (> 10 %; that
+   EK is JTL's stored supplier price, often stale) and against the latest earlier reimport of
+   each HAN.
 3. `<Vertriebsbeleg>-jtl-snapshot.json`: the JTL data the run used, so a result can be checked later.
 
 ## 3. Running it

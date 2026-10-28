@@ -45,6 +45,10 @@ def gegenprobe(sap_lines, base, existing_reimport, positions, result, csv_name) 
     exact = [l for l in priced if abs(l["ek"] - l["previous_ek"]) <= 0.0001]
     off = sorted((l for l in priced if abs(l["ek"] / l["previous_ek"] - 1) > 0.02),
                  key=lambda l: -abs(l["ek"] / l["previous_ek"] - 1))
+    based = [l for l in result.lines if l["base_ek"] is not None]
+    base_off = sorted((l for l in based if l["base_ek"] > 0 and abs(l["ek"] / l["base_ek"] - 1) > 0.10),
+                      key=lambda l: l["position"])
+    base_zero = [l for l in based if not l["base_ek"]]
     sap_total = sum(l.total_net for l in sap_lines)
     csv_total = sum(l["quantity"] * l["ek"] for l in result.lines)
 
@@ -68,6 +72,8 @@ def gegenprobe(sap_lines, base, existing_reimport, positions, result, csv_name) 
         f"| Σ menge × EK netto (CSV) | {_fmt(csv_total)} |",
         f"| EK mit Vorgänger-Reimport vergleichbar / exakt gleich / > 2 % abweichend | "
         f"{len(priced)} / {len(exact)} / {len(off)} |",
+        f"| EK gegen Basisbestellung: verglichen / > 10 % abweichend / dort EK 0 | "
+        f"{len(based)} / {len(base_off)} / {len(base_zero)} |",
         f"| Blocker / Warnungen / Hinweise | {len(result.blockers)} / {len(result.warnings)} / {len(result.notes)} |",
         "",
     ]
@@ -92,6 +98,17 @@ def gegenprobe(sap_lines, base, existing_reimport, positions, result, csv_name) 
         out += [f"| {l['position']} | {l['han']} | {l['vpe']} | {_qty(l['quantity'])} |" for l in vpe_lines]
     else:
         out.append("keine: alle Zeilen mit Faktor 1 (Basisposition und Lieferantenartikel ohne VPE)")
+    out.extend(["", "## EK > 10 % abweichend von der Basisbestellung", "",
+                "Der EK der Basisbestellung ist der in JTL hinterlegte Lieferanten-EK beim Anlegen der",
+                "Bestellung, nicht Husqvarnas Preis; große Abweichungen zeigen veraltete Stammdaten.", ""])
+    if base_off or base_zero:
+        out.extend(["| Pos (SD) | HAN | EK Basis | EK neu | Faktor | EK letzter Reimport |", "|---|---|---|---|---|---|"])
+        for l in sorted(base_off + base_zero, key=lambda l: l["position"]):
+            factor = f"{l['ek'] / l['base_ek']:.2f}" if l["base_ek"] else "–"
+            last = f"{l['previous_ek']:.4f} ({l['previous_order']})" if l["previous_ek"] else "–"
+            out.append(f"| {l['position']} | {l['han']} | {l['base_ek']:.4f} | {l['ek']:.4f} | {factor} | {last} |")
+    else:
+        out.append("keine")
     out.extend(["", "## EK > 2 % abweichend vom letzten Reimport", "",
                 "Verglichen wird mit dem jüngsten früheren `-I` derselben HAN; liegt der Monate zurück,",
                 "zeigt die Abweichung meist eine Preisänderung, keinen Rechenfehler.", ""])

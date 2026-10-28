@@ -212,7 +212,7 @@ class CliTest(unittest.TestCase):
         if "cEigeneBestellnummer = 'D-BE20990001-I'" in sql:
             return ""
         if "FROM dbo.tLieferantenBestellungPos WHERE kLieferantenBestellung = 77" in sql:
-            return "1|11|4711|591234567|3.0000|NULL\n"
+            return "1|11|4711|591234567|3.0000|NULL|2.9000\n"
         if "FROM dbo.tliefartikel" in sql:
             return "11|4711|591234567|.0000\n"
         if "ROW_NUMBER()" in sql:
@@ -233,6 +233,8 @@ class CliTest(unittest.TestCase):
             report = (out / "9000000001-gegenprobe.md").read_text(encoding="utf-8")
             self.assertIn("| Zeilen SAP / CSV | 1 / 1 |", report)
             self.assertIn("1 / 1 / 0 |", report)
+            self.assertIn("| EK gegen Basisbestellung: verglichen / > 10 % abweichend / dort EK 0 | 1 / 1 / 0 |", report)
+            self.assertIn("| 10 | 591234567 | 2.9000 | 2.5317 | 0.87 |", report)
             self.assertTrue((out / "9000000001-jtl-snapshot.json").exists())
 
     def test_existing_reimport_order_returns_3(self):

@@ -41,6 +41,7 @@ class OrderPosition:
     supplier_article_number: str
     quantity: float
     vpe: float
+    ek_net: float = 0.0  # the order's net EK: JTL's stored supplier price when the order was made
 
 
 @dataclass(frozen=True)
@@ -124,13 +125,14 @@ def find_order_numbers(run: Runner, number: str) -> list[str]:
 def load_positions(run: Runner, k_order: int) -> list[OrderPosition]:
     rows = _rows(run(
         "SELECT nSort, ISNULL(kArtikel, 0), cArtNr, LTRIM(RTRIM(cLieferantenArtNr)), "
-        "CAST(fMenge AS decimal(18,4)), CAST(ISNULL(nVPEMenge, 0) AS decimal(18,4)) "
+        "CAST(fMenge AS decimal(18,4)), CAST(ISNULL(nVPEMenge, 0) AS decimal(18,4)), "
+        "CAST(ISNULL(fEKNetto, 0) AS decimal(18,4)) "
         "FROM dbo.tLieferantenBestellungPos "
         f"WHERE kLieferantenBestellung = {int(k_order)} ORDER BY nSort"
     ))
     return [
-        OrderPosition(int(s), int(k), _text(art), _text(han), _number(qty), _number(vpe))
-        for s, k, art, han, qty, vpe in rows
+        OrderPosition(int(s), int(k), _text(art), _text(han), _number(qty), _number(vpe), _number(ek))
+        for s, k, art, han, qty, vpe, ek in rows
     ]
 
 
