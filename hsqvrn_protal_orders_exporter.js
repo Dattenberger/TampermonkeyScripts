@@ -1090,7 +1090,7 @@
 
             // Update status display if this is from custom order input
             if (isCustomOrderInput) {
-                updateStatusItem(orderNumber, 'error', error.message || 'Fehler beim Download');
+                updateStatusItem(orderNumber, 'error', userMessage);
             }
 
             // Error is now only shown visually with red button
@@ -1346,6 +1346,8 @@
 
         // Update class
         item.className = `datte-download-status-item status-${status}`;
+        // The label shows only number and icon; hover shows the message (e.g. the error reason)
+        item.title = message || '';
 
         // Update icon
         const iconElement = item.querySelector('.datte-download-status-icon');
