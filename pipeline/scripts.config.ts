@@ -4,16 +4,24 @@
 //   1. Create `src/scripts/<name>/main.ts` (entry).
 //   2. Add an entry to `scripts` below.
 //   3. Commit. CI builds `dist/<outputFileName>` automatically.
+//
+// The repository is public: `@author` is the neutral AUTHOR for every script (set here, never per
+// script), and local per-user values (e.g. a discount factor) are declared under `settings` by
+// name only, never with a value; their grants follow from the declaration (userscriptHeader).
+
+export const AUTHOR = 'Robotico'
+const SETTINGS_GRANTS = ['GM_getValue', 'GM_setValue', 'GM_registerMenuCommand']
 
 export interface ScriptConfig {
     entry: string
     outputFileName: string
+    /** GM storage keys of local per-user settings (see @lib/settings). */
+    settings?: readonly string[]
     userscript: {
         name: string
         namespace: string
         version: string
         description: string
-        author: string
         match: string[]
         grant: string[]
         connect?: string[]
@@ -26,6 +34,13 @@ export interface ScriptConfig {
     externalResource?: Record<string, string>
 }
 
+/** The header as built: neutral author, explicit grants plus those the declared settings need. */
+export function userscriptHeader(config: ScriptConfig): ScriptConfig['userscript'] & { author: string } {
+    const settingsGrants = config.settings?.length ? SETTINGS_GRANTS : []
+    const grant = [...new Set([...config.userscript.grant, ...settingsGrants])]
+    return { ...config.userscript, author: AUTHOR, grant }
+}
+
 export const scripts: Record<string, ScriptConfig> = {
     'greyhound-quote-collapser': {
         entry: 'src/scripts/greyhound-quote-collapser/main.ts',
@@ -36,7 +51,6 @@ export const scripts: Record<string, ScriptConfig> = {
             version: '2.1.0',
             description:
                 'Klappt Signatur+Verlauf in Greyhound-E-Mails ein. Unterstützt iframe-srcdoc (Detail-Vollansicht) und inline (ChatView) gleichermaßen. Inline-Pfad mit Self-Healing-MutationObserver gegen React-Re-Renders.',
-            author: 'Lukas Dattenberger',
             match: ['https://greyhound.dattenberger.com/web/unity/*'],
             grant: [],
             'run-at': 'document-idle',
