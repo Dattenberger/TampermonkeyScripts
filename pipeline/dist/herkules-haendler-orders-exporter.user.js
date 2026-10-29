@@ -14,19 +14,24 @@
 
 (function() {
   'use strict';
+	var PLAIN_DECIMAL = /^\d*[.,]?\d+$/;
+	function formatFactor(value) {
+		return value.toLocaleString("de-DE", {
+			useGrouping: false,
+			maximumFractionDigits: 20
+		});
+	}
 	function parseFactor(input) {
 		let value = NaN;
 		if (typeof input === "number") value = input;
-		if (typeof input === "string" && /^\d*[.,]?\d+$/.test(input.trim())) value = Number(input.trim().replace(",", "."));
-		return Number.isFinite(value) && value > 0 && value <= 1 ? value : null;
+		if (typeof input === "string" && PLAIN_DECIMAL.test(input.trim())) value = Number(input.trim().replace(",", "."));
+		const shown = Number.isFinite(value) ? Number(formatFactor(value).replace(",", ".")) : NaN;
+		return value > 0 && value <= 1 && shown > 0 ? value : null;
 	}
 	function askFactor(setting) {
 		const current = parseFactor(GM_getValue(setting.key));
 		for (;;) {
-			const input = globalThis.prompt(`${setting.label}\nWird nur lokal in Tampermonkey gespeichert.`, current === null ? "" : current.toLocaleString("de-DE", {
-				useGrouping: false,
-				maximumFractionDigits: 20
-			}));
+			const input = globalThis.prompt(`${setting.label}\nWird nur lokal in Tampermonkey gespeichert.`, current === null ? "" : formatFactor(current));
 			if (input === null) return null;
 			const value = parseFactor(input);
 			if (value !== null) {
