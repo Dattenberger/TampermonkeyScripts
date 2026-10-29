@@ -64,4 +64,22 @@ export const scripts: Record<string, ScriptConfig> = {
                 'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/greyhound-quote-collapser.user.js',
         },
     },
+    'herkules-haendler-orders-exporter': {
+        entry: 'src/scripts/herkules-haendler-orders-exporter/main.ts',
+        outputFileName: 'herkules-haendler-orders-exporter.user.js',
+        settings: ['herkulesDiscountFactor'],
+        userscript: {
+            name: 'HerkulesHaendlerOrdersExporter v1',
+            namespace: 'https://github.com/Dattenberger/TampermonkeyScripts',
+            version: '0.1.0',
+            description:
+                'Exportiert Bestellungen aus der Herkules-Händler-Dokumenthistorie als CSV im JTL-Format der Husqvarna-Exporter (und optional Artikel;Menge).',
+            match: ['https://www.herkules-haendler.de/garten/de/account/*'],
+            grant: [],
+            updateURL:
+                'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/herkules-haendler-orders-exporter.user.js',
+            downloadURL:
+                'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/herkules-haendler-orders-exporter.user.js',
+        },
+    },
 }
