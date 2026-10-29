@@ -29,4 +29,9 @@ describe('script registry', () => {
         expect(userscriptHeader(fake).grant).toEqual(grants)
         expect(userscriptHeader({ ...fake, settings: undefined }).grant).toEqual(['GM_addStyle', 'GM_getValue'])
     })
+
+    it("refuses declared settings together with the 'none' grant", () => {
+        const none = { ...fake, userscript: { ...fake.userscript, grant: ['none'] } }
+        expect(() => userscriptHeader(none)).toThrow(/none/)
+    })
 })

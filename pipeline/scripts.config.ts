@@ -37,6 +37,10 @@ export interface ScriptConfig {
 /** The header as built: neutral author, explicit grants plus those the declared settings need. */
 export function userscriptHeader(config: ScriptConfig): ScriptConfig['userscript'] & { author: string } {
     const settingsGrants = config.settings?.length ? SETTINGS_GRANTS : []
+    // vite-plugin-monkey emits only `@grant none` once that sentinel is present, dropping the rest.
+    if (settingsGrants.length > 0 && config.userscript.grant.includes('none')) {
+        throw new Error(`${config.outputFileName}: declared settings need GM grants, not 'none'`)
+    }
     const grant = [...new Set([...config.userscript.grant, ...settingsGrants])]
     return { ...config.userscript, author: AUTHOR, grant }
 }

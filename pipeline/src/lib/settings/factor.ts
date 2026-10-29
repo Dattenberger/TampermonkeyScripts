@@ -9,11 +9,12 @@ export interface FactorSetting {
     label: string
 }
 
-/** A decimal with comma or dot; only factors in (0, 1] are valid, anything else is null. */
+/** A plain decimal with comma or dot; only factors in (0, 1] are valid, anything else is null. */
 export function parseFactor(input: unknown): number | null {
     let value = Number.NaN
     if (typeof input === 'number') value = input
-    if (typeof input === 'string') value = Number.parseFloat(input.trim().replace(',', '.'))
+    // The whole string must be the number: parseFloat alone would take '0,123abc' as 0.123.
+    if (typeof input === 'string' && /^\d+(?:[.,]\d+)?$/.test(input.trim())) value = Number(input.trim().replace(',', '.'))
     return Number.isFinite(value) && value > 0 && value <= 1 ? value : null
 }
 
