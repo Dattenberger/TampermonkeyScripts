@@ -42,6 +42,12 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PIPELINE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
+# In a linked worktree git runs hooks with GIT_DIR set and GIT_WORK_TREE unset; after the cd
+# below git would take pipeline/ for the work tree and stage pipeline/dist a second time as
+# dist/ at the root. Pin the work tree to the real top first.
+GIT_WORK_TREE="$(git rev-parse --show-toplevel)"
+export GIT_WORK_TREE
+
 cd "$PIPELINE_DIR"
 
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
