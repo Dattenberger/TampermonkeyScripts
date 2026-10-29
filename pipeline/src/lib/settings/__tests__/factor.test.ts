@@ -20,6 +20,10 @@ describe('factor setting', () => {
         expect(parseFactor(1)).toBe(1)
         expect(parseFactor(',5')).toBe(0.5)
         expect(parseFactor('.5')).toBe(0.5)
+        // A stored number counts only if the prompt can show it: 1e-21 would read as '0'.
+        expect(parseFactor(0.000_000_1)).toBe(0.000_000_1)
+        expect(parseFactor(1e-21)).toBeNull()
+        expect(parseFactor('0,' + '0'.repeat(20) + '1')).toBeNull()
         const bad = ['0', '-0.1', '1.001', 'abc', '', null, undefined, '0,123abc', '0,123,456', '0.123.456', '1/2', '1e-1']
         for (const input of bad) expect(parseFactor(input)).toBeNull()
     })

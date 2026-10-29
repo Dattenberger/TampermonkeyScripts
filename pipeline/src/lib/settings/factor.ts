@@ -9,13 +9,21 @@ export interface FactorSetting {
     label: string
 }
 
-/** A plain decimal with comma or dot; only factors in (0, 1] are valid, anything else is null. */
+const PLAIN_DECIMAL = /^\d*[.,]?\d+$/
+
+/** A factor as the user types it: comma, no grouping, no exponent (String(1e-7) is '1e-7'). */
+function formatFactor(value: number): string {
+    return value.toLocaleString('de-DE', { useGrouping: false, maximumFractionDigits: 20 })
+}
+
+/** A plain decimal with comma or dot in (0, 1]; anything else is null. The prompt shows a factor
+ *  with at most 20 fractional digits, so one that would read as 0 there (1e-21) is not a factor. */
 export function parseFactor(input: unknown): number | null {
     let value = Number.NaN
     if (typeof input === 'number') value = input
-    // The whole string must be the number: parseFloat alone would take '0,123abc' as 0.123.
-    if (typeof input === 'string' && /^\d*[.,]?\d+$/.test(input.trim())) value = Number(input.trim().replace(',', '.'))
-    return Number.isFinite(value) && value > 0 && value <= 1 ? value : null
+    if (typeof input === 'string' && PLAIN_DECIMAL.test(input.trim())) value = Number(input.trim().replace(',', '.'))
+    const shown = Number.isFinite(value) ? Number(formatFactor(value).replace(',', '.')) : Number.NaN
+    return value > 0 && value <= 1 && shown > 0 ? value : null
 }
 
 /** Asks until the input is valid, then stores it; null (and nothing stored) when cancelled. */
@@ -24,8 +32,7 @@ export function askFactor(setting: FactorSetting): number | null {
     for (;;) {
         const input = globalThis.prompt(
             `${setting.label}\nWird nur lokal in Tampermonkey gespeichert.`,
-            // toLocaleString, not String(): String(1e-7) is '1e-7', which parseFactor refuses.
-            current === null ? '' : current.toLocaleString('de-DE', { useGrouping: false, maximumFractionDigits: 20 }),
+            current === null ? '' : formatFactor(current),
         )
         if (input === null) return null
         const value = parseFactor(input)
