@@ -14,7 +14,7 @@ export function parseFactor(input: unknown): number | null {
     let value = Number.NaN
     if (typeof input === 'number') value = input
     // The whole string must be the number: parseFloat alone would take '0,123abc' as 0.123.
-    if (typeof input === 'string' && /^\d+(?:[.,]\d+)?$/.test(input.trim())) value = Number(input.trim().replace(',', '.'))
+    if (typeof input === 'string' && /^\d*[.,]?\d+$/.test(input.trim())) value = Number(input.trim().replace(',', '.'))
     return Number.isFinite(value) && value > 0 && value <= 1 ? value : null
 }
 
@@ -24,7 +24,8 @@ export function askFactor(setting: FactorSetting): number | null {
     for (;;) {
         const input = globalThis.prompt(
             `${setting.label}\nWird nur lokal in Tampermonkey gespeichert.`,
-            current === null ? '' : String(current).replace('.', ','),
+            // toLocaleString, not String(): String(1e-7) is '1e-7', which parseFactor refuses.
+            current === null ? '' : current.toLocaleString('de-DE', { useGrouping: false, maximumFractionDigits: 20 }),
         )
         if (input === null) return null
         const value = parseFactor(input)

@@ -18,6 +18,8 @@ describe('factor setting', () => {
         expect(parseFactor('0,123')).toBe(0.123)
         expect(parseFactor(' 0.123 ')).toBe(0.123)
         expect(parseFactor(1)).toBe(1)
+        expect(parseFactor(',5')).toBe(0.5)
+        expect(parseFactor('.5')).toBe(0.5)
         const bad = ['0', '-0.1', '1.001', 'abc', '', null, undefined, '0,123abc', '0,123,456', '0.123.456', '1/2', '1e-1']
         for (const input of bad) expect(parseFactor(input)).toBeNull()
     })
@@ -33,6 +35,15 @@ describe('factor setting', () => {
         GM_setValue('testFactor', 0.123)
         expect(getFactor(setting)).toBe(0.123)
         expect(prompt).not.toHaveBeenCalled()
+    })
+
+    it('offers a small stored value in a form it accepts again', () => {
+        GM_setValue('testFactor', 0.000_000_1)
+        prompt.mockReturnValue(null).mockImplementationOnce((_message, value) => value ?? null)
+        registerFactorMenu(setting, 'Test-Faktor ändern')
+        vi.mocked(GM_registerMenuCommand).mock.calls[0]![1]()
+        expect(prompt.mock.calls[0]![1]).toBe('0,0000001')
+        expect(alert).not.toHaveBeenCalled()
     })
 
     it('refuses invalid input and asks again', () => {
