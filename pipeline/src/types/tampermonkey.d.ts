@@ -32,6 +32,11 @@ declare function GM_getValue<T = unknown>(key: string, defaultValue?: T): T
 declare function GM_setValue(key: string, value: unknown): void
 declare function GM_deleteValue(key: string): void
 declare function GM_listValues(): string[]
+/** Fires on every change of the key, in this tab and (remote = true) in others. */
+declare function GM_addValueChangeListener(
+    key: string,
+    listener: (key: string, oldValue: unknown, newValue: unknown, remote: boolean) => void,
+): number
 declare function GM_registerMenuCommand(caption: string, onClick: () => void, accessKey?: string): number
 
 declare function GM_openInTab(

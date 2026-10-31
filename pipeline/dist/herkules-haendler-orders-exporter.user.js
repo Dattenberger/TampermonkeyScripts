@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         HerkulesHaendlerOrdersExporter v1
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      0.1.0
+// @version      0.1.1
 // @author       Robotico
 // @description  Exportiert Bestellungen aus der Herkules-Händler-Dokumenthistorie als CSV im JTL-Format der Husqvarna-Exporter (und optional Artikel;Menge).
 // @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/herkules-haendler-orders-exporter.user.js
 // @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/herkules-haendler-orders-exporter.user.js
 // @match        https://www.herkules-haendler.de/garten/de/account/*
+// @grant        GM_addValueChangeListener
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_setValue
@@ -48,6 +49,25 @@
 		GM_registerMenuCommand(caption, () => {
 			askFactor(setting);
 		});
+	}
+	function badgeText(setting) {
+		const value = parseFactor(GM_getValue(setting.key));
+		return value === null ? "Faktor fehlt · eingeben" : `Faktor ${formatFactor(value)} · ändern`;
+	}
+	function factorBadge(setting) {
+		const badge = document.createElement("button");
+		badge.type = "button";
+		badge.title = `${setting.label}\nWird nur lokal in Tampermonkey gespeichert.`;
+		badge.textContent = badgeText(setting);
+		badge.addEventListener("click", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			askFactor(setting);
+		});
+		GM_addValueChangeListener(setting.key, () => {
+			badge.textContent = badgeText(setting);
+		});
+		return badge;
 	}
 	var ROWS = ".modal .itemtable_list .itemtable_row";
 	function parseNumber(text) {
@@ -192,13 +212,16 @@
 			button.disabled = false;
 		}
 	}
+	function styled(element, className) {
+		element.className = `buttonLink ${className}`;
+		element.style.marginLeft = "12px";
+		return element;
+	}
 	function makeButton(form, text, title, format) {
-		const button = document.createElement("button");
+		const button = styled(document.createElement("button"), "herkules-export-btn");
 		button.type = "button";
-		button.className = "buttonLink herkules-export-btn";
 		button.textContent = text;
 		button.title = title;
-		button.style.marginLeft = "12px";
 		button.addEventListener("click", (event) => {
 			event.preventDefault();
 			event.stopPropagation();
@@ -211,7 +234,7 @@
 			const details = form.querySelector("button[name=\"view_document_card\"]");
 			if (field(form, "document_type") !== "order" || form.dataset.herkulesExport || !details) continue;
 			form.dataset.herkulesExport = "1";
-			details.after(makeButton(form, "CSV", "Export CSV für JTL (gleiches Format wie Husqvarna-Exporter)", "jtl"), makeButton(form, "Artikel;Menge", "Export Artikel;Menge (Reimport)", "artikel-menge"));
+			details.after(makeButton(form, "CSV", "Export CSV für JTL (gleiches Format wie Husqvarna-Exporter)", "jtl"), styled(factorBadge(DISCOUNT_FACTOR), "herkules-factor-btn"), makeButton(form, "Artikel;Menge", "Export Artikel;Menge (Reimport)", "artikel-menge"));
 		}
 	}
 	registerFactorMenu(DISCOUNT_FACTOR, "Skonto-Faktor ändern");

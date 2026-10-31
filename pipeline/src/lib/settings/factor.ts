@@ -1,6 +1,8 @@
 // Local per-user factor settings (e.g. a discount factor). This repository is public, so such
 // values never go into code: the user enters them once, Tampermonkey's storage keeps them, and
-// there is no default anywhere. The script declares the setting's key in scripts.config.ts.
+// there is no default anywhere. The script declares the setting's key in scripts.config.ts and
+// shows the stored value where the user works (factorBadge), changeable there with one click; the
+// Tampermonkey menu entry stays as the fallback.
 
 export interface FactorSetting {
     /** GM storage key, as declared under `settings` in the registry. */
@@ -54,4 +56,29 @@ export function registerFactorMenu(setting: FactorSetting, caption: string): voi
     GM_registerMenuCommand(caption, () => {
         askFactor(setting)
     })
+}
+
+function badgeText(setting: FactorSetting): string {
+    const value = parseFactor(GM_getValue<unknown>(setting.key))
+    return value === null ? 'Faktor fehlt · eingeben' : `Faktor ${formatFactor(value)} · ändern`
+}
+
+/** A button showing the stored factor ("Faktor 0,… · ändern", without one "Faktor fehlt") that
+ *  asks for a new value on click. It follows every change of the stored value, from the badge,
+ *  the menu, the first-use prompt or another tab, so it always shows what an export applies.
+ *  The caller places and styles it. */
+export function factorBadge(setting: FactorSetting): HTMLButtonElement {
+    const badge = document.createElement('button')
+    badge.type = 'button'
+    badge.title = `${setting.label}\nWird nur lokal in Tampermonkey gespeichert.`
+    badge.textContent = badgeText(setting)
+    badge.addEventListener('click', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        askFactor(setting)
+    })
+    GM_addValueChangeListener(setting.key, () => {
+        badge.textContent = badgeText(setting)
+    })
+    return badge
 }
