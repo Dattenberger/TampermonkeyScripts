@@ -3,11 +3,14 @@
 // Adding a new script:
 //   1. Create `src/scripts/<name>/main.ts` (entry).
 //   2. Add an entry to `scripts` below.
-//   3. Commit. CI builds `dist/<outputFileName>` automatically.
+//   3. Commit. The pre-commit hook builds `dist/<outputFileName>` and records the version in
+//      `versions.json` (`npm run version:update`); CI checks both. Versions are never set by hand.
 //
 // The repository is public: `@author` is the neutral AUTHOR for every script (set here, never per
 // script), and local per-user values (e.g. a discount factor) are declared under `settings` by
 // name only, never with a value; their grants follow from the declaration (userscriptHeader).
+
+import versions from './versions.json' with { type: 'json' }
 
 export const AUTHOR = 'Robotico'
 const SETTINGS_GRANTS = ['GM_getValue', 'GM_setValue', 'GM_registerMenuCommand']
@@ -20,7 +23,6 @@ export interface ScriptConfig {
     userscript: {
         name: string
         namespace: string
-        version: string
         description: string
         match: string[]
         grant: string[]
@@ -34,15 +36,25 @@ export interface ScriptConfig {
     externalResource?: Record<string, string>
 }
 
-/** The header as built: neutral author, explicit grants plus those the declared settings need. */
-export function userscriptHeader(config: ScriptConfig): ScriptConfig['userscript'] & { author: string } {
+/** The recorded version (versions.json); a script new on this branch builds as 0.0.0 until
+ *  `npm run version:update` records it. */
+export function scriptVersion(name: string): string {
+    return (versions as Record<string, { version: string } | undefined>)[name]?.version ?? '0.0.0'
+}
+
+/** The header as built: neutral author, the recorded version, explicit grants plus those the
+ *  declared settings need. */
+export function userscriptHeader(
+    config: ScriptConfig,
+    version: string,
+): ScriptConfig['userscript'] & { author: string; version: string } {
     const settingsGrants = config.settings?.length ? SETTINGS_GRANTS : []
     // vite-plugin-monkey emits only `@grant none` once that sentinel is present, dropping the rest.
     if (settingsGrants.length > 0 && config.userscript.grant.includes('none')) {
         throw new Error(`${config.outputFileName}: declared settings need GM grants, not 'none'`)
     }
     const grant = [...new Set([...config.userscript.grant, ...settingsGrants])]
-    return { ...config.userscript, author: AUTHOR, grant }
+    return { ...config.userscript, author: AUTHOR, version, grant }
 }
 
 export const scripts: Record<string, ScriptConfig> = {
@@ -52,7 +64,6 @@ export const scripts: Record<string, ScriptConfig> = {
         userscript: {
             name: 'Greyhound Quote Collapser',
             namespace: 'https://robotico.de/',
-            version: '2.1.0',
             description:
                 'Klappt Signatur+Verlauf in Greyhound-E-Mails ein. Unterstützt iframe-srcdoc (Detail-Vollansicht) und inline (ChatView) gleichermaßen. Inline-Pfad mit Self-Healing-MutationObserver gegen React-Re-Renders.',
             match: ['https://greyhound.dattenberger.com/web/unity/*'],
@@ -71,7 +82,6 @@ export const scripts: Record<string, ScriptConfig> = {
         userscript: {
             name: 'HerkulesHaendlerOrdersExporter v1',
             namespace: 'https://github.com/Dattenberger/TampermonkeyScripts',
-            version: '0.1.0',
             description:
                 'Exportiert Bestellungen aus der Herkules-Händler-Dokumenthistorie als CSV im JTL-Format der Husqvarna-Exporter (und optional Artikel;Menge).',
             match: ['https://www.herkules-haendler.de/garten/de/account/*'],

@@ -1,0 +1,10 @@
+{
+    "greyhound-quote-collapser": {
+        "version": "2.1.0",
+        "sha256": "130bf99de0aae68fca75e821654565298d16e64a5bb18600966086610d8163d6"
+    },
+    "herkules-haendler-orders-exporter": {
+        "version": "0.1.0",
+        "sha256": "500c4b9a92d8c63792f6ffb00159dc7b395b678b8242bf923ef8aa04ff375f16"
+    }
+}

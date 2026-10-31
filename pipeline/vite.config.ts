@@ -2,7 +2,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import monkey from 'vite-plugin-monkey'
-import { scripts, userscriptHeader } from './scripts.config.js'
+import { scriptVersion, scripts, userscriptHeader } from './scripts.config.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const scriptName = process.env.SCRIPT
@@ -38,7 +38,7 @@ export default defineConfig({
             // The `grant` type in vite-plugin-monkey is a string-literal union
             // of every known GM_* grant — keeping `scripts.config.ts` plugin-
             // agnostic via `string[]` and casting here is the simpler trade.
-            userscript: userscriptHeader(scriptConfig) as Parameters<typeof monkey>[0]['userscript'],
+            userscript: userscriptHeader(scriptConfig, scriptVersion(scriptName)) as Parameters<typeof monkey>[0]['userscript'],
             build: {
                 externalGlobals: scriptConfig.externalGlobals ?? {},
                 externalResource: scriptConfig.externalResource ?? {},
