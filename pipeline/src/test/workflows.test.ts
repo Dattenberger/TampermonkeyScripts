@@ -4,16 +4,21 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
 
 const WORKFLOWS = path.resolve(import.meta.dirname, '../../../.github/workflows')
 const files = readdirSync(WORKFLOWS).filter((file) => /\.ya?ml$/.test(file))
-/** A workflow without its comment lines, which may name what is forbidden. */
-const read = (file: string) => readFileSync(path.join(WORKFLOWS, file), 'utf8').replaceAll(/^\s*#.*\n/gm, '')
 
-/** The top-level `on:` block, up to the next top-level key. */
-function triggers(workflow: string): string {
-    return /^on:\n((?:[ #].*\n|\n)*)/m.exec(workflow)?.[1] ?? ''
+interface Workflow {
+    on: Record<string, { branches?: string[] } | null>
+    permissions?: unknown
+    jobs: Record<string, { permissions?: unknown }>
 }
+
+const source = (file: string) => readFileSync(path.join(WORKFLOWS, file), 'utf8')
+const workflow = (file: string) => parse(source(file)) as Workflow
+/** Every expression and value of the workflow, without its comments (which may name what is forbidden). */
+const code = (file: string) => JSON.stringify(parse(source(file)))
 
 describe('workflows', () => {
     it('exist', () => {
@@ -21,29 +26,24 @@ describe('workflows', () => {
     })
 
     it.each(files)('%s uses no secret and no pull_request_target', (file) => {
-        const workflow = read(file)
-        expect(workflow).not.toMatch(/pull_request_target/)
-        expect(workflow).not.toMatch(/\bsecrets\s*[.[]/)
+        expect(Object.keys(workflow(file).on)).not.toContain('pull_request_target')
+        expect(code(file)).not.toMatch(/\bsecrets\s*[.[]/)
     })
 
     it.each(files)('%s runs with a read-only token', (file) => {
-        const workflow = read(file)
-        expect(workflow).toMatch(/^permissions:\n {2}contents: read\n(?! )/m)
-        expect(workflow).not.toMatch(/: *write\b|write-all/)
+        const { permissions, jobs } = workflow(file)
+        expect(permissions).toEqual({ contents: 'read' })
+        for (const job of Object.values(jobs)) expect(job.permissions).toBeUndefined()
     })
 
     it.each(files)('%s runs on pull requests into main, pushes to main and by hand only', (file) => {
-        const on = triggers(read(file))
-        const events = [...on.matchAll(/^ {2}(\w+):/gm)].map(([, event]) => event)
-        expect(events).toEqual(['pull_request', 'push', 'workflow_dispatch'])
-        expect(on).toMatch(/^ {2}pull_request:\n {4}branches: \[main\]\n/m)
-        expect(on).toMatch(/^ {2}push:\n {4}branches: \[main\]\n/m)
+        const { on } = workflow(file)
+        expect(Object.keys(on).toSorted()).toEqual(['pull_request', 'push', 'workflow_dispatch'])
+        expect(on.pull_request?.branches).toEqual(['main'])
+        expect(on.push?.branches).toEqual(['main'])
     })
 
-    it('the rules catch what they forbid', () => {
-        expect('on:\n  pull_request_target:\n').toMatch(/pull_request_target/)
-        expect('token: ${{ secrets.ANY }}').toMatch(/\bsecrets\s*[.[]/)
-        expect('    contents: write').toMatch(/: *write\b/)
-        expect(triggers('on:\n  push:\n    branches:\n      - "**"\n\njobs:\n')).toBe('  push:\n    branches:\n      - "**"\n\n')
+    it('the secret rule catches an expression', () => {
+        expect(JSON.stringify(parse('env:\n  T: ${{ secrets.ANY }}\n  U: ${{ secrets[\'X\'] }}\n'))).toMatch(/\bsecrets\s*[.[]/)
     })
 })
