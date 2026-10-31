@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vite'
+import { defineConfig, type ServerOptions } from 'vite'
 import monkey from 'vite-plugin-monkey'
 import { scriptVersion, scripts, userscriptHeader } from './scripts.config.js'
 
@@ -20,7 +20,15 @@ if (!scriptConfig) {
     throw new Error(`vite.config.ts: unknown script "${scriptName}". Registered: ${known}`)
 }
 
+// Dev server for trying a branch in Tampermonkey (README "Testing a feature branch"): bound to
+// 127.0.0.1 only and never moved to another port. With DEV_PORT set it sits behind an HTTPS proxy
+// on that same port, so the page is https and HMR must use wss on the public port.
+const devPort = process.env.DEV_PORT ? Number(process.env.DEV_PORT) : undefined
+const proxied: ServerOptions =
+    devPort === undefined ? {} : { port: devPort, allowedHosts: true, hmr: { protocol: 'wss', clientPort: devPort } }
+
 export default defineConfig({
+    server: { host: '127.0.0.1', strictPort: true, ...proxied },
     resolve: {
         alias: {
             '@lib': path.resolve(__dirname, 'src/lib'),
