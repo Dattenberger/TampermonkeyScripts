@@ -21,7 +21,8 @@
         "check": "bash scripts/hooks/pre-commit --all",
         "check:staged": "bash scripts/hooks/pre-commit",
         "version:update": "tsx scripts/versioning/cli.ts update",
-        "version:check": "tsx scripts/versioning/cli.ts check"
+        "version:check": "tsx scripts/versioning/cli.ts check",
+        "data-guard": "tsx scripts/data-guard/cli.ts"
     },
     "devDependencies": {
         "@eslint/js": "^9.39.0",
