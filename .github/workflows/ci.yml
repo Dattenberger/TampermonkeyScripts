@@ -1,29 +1,48 @@
 name: CI
 
+# Checks every pull request into main, every push to main (the merge) and manual runs.
+#
+# main is the only delivery path: Tampermonkey loads pipeline/dist/*.user.js from its raw URLs on
+# main. The bundles and their versions come with the pull request (pre-commit hook:
+# `npm run version:update`), and this workflow checks that they are exactly what the sources
+# build and that every changed script carries the next version. CI never writes to the
+# repository, so the main ruleset needs no bypass.
+#
+# Hard rules for this public repository, pinned by pipeline/src/test/workflows.test.ts: no
+# secrets, no pull_request_target, a read-only token.
+
 on:
-  push:
-    branches-ignore:
-      - 'gh-readonly-queue/**'
   pull_request:
+    branches: [main]
+    # labeled/unlabeled: a release:minor or release:major label changes the expected versions.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
-    # The TypeScript build pipeline lives in pipeline/. Legacy standalone
-    # userscripts at the repo root are not CI-validated (they predate
-    # this pipeline and have no test suite).
     working-directory: pipeline
 
 jobs:
-  validate:
-    name: Lint, Typecheck, Test, Build
+  checks:
+    name: Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The version check compares with main before this change, the secret scan reads
+          # the whole history.
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node 24
         uses: actions/setup-node@v4
@@ -35,6 +54,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Workflow lint (actionlint)
+        working-directory: .
+        run: docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.12 -color
+
       - name: ESLint
         run: npm run lint
 
@@ -44,5 +67,30 @@ jobs:
       - name: Vitest
         run: npm test
 
-      - name: Build
-        run: npm run build
+      - name: Build, versions and bundles
+        # The base is main before this change: the first parent of the PR's merge commit, the
+        # previous tip for a push; a manual run checks main against itself.
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          case "$EVENT" in
+            pull_request) npm run version:check -- --base HEAD^1 --labels "$LABELS" ;;
+            push) npm run version:check -- --base "$BEFORE" ;;
+            *) npm run version:check -- --base HEAD ;;
+          esac
+
+      - name: Public data guard
+        run: npm run data-guard
+
+      - name: Secret scan (gitleaks)
+        working-directory: .
+        # Every commit of the history, so also every file of this tree (the bundles are checked to
+        # equal the committed ones above). gitleaks reports "0 commits scanned" and exits 0 when
+        # it cannot read the repository, so a scan that read no commit fails here.
+        run: |
+          set -o pipefail
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git /repo --redact --no-banner 2>&1 | tee "$RUNNER_TEMP/gitleaks.log"
+          grep -qE ' [1-9][0-9]* commits scanned' "$RUNNER_TEMP/gitleaks.log"
