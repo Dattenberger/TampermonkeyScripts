@@ -68,6 +68,7 @@ export default tseslint.config(
                 GM_openInTab: 'readonly',
                 GM_setClipboard: 'readonly',
                 GM_notification: 'readonly',
+                GM_registerMenuCommand: 'readonly',
                 unsafeWindow: 'readonly',
             },
         },

@@ -15,6 +15,7 @@ const gmStorage = new Map<string, unknown>()
 ;(globalThis as Record<string, unknown>).GM_openInTab = vi.fn(() => ({ close: vi.fn(), closed: false }))
 ;(globalThis as Record<string, unknown>).GM_setClipboard = vi.fn()
 ;(globalThis as Record<string, unknown>).GM_notification = vi.fn()
+;(globalThis as Record<string, unknown>).GM_registerMenuCommand = vi.fn()
 
 ;(globalThis as Record<string, unknown>).GM_getValue = vi.fn((key: string, def?: unknown) =>
     gmStorage.has(key) ? gmStorage.get(key) : def,
