@@ -79,7 +79,6 @@ describe('factor setting', () => {
 
     it('shows a missing factor on the badge and asks for it on click', () => {
         const badge = factorBadge(setting)
-        document.body.replaceChildren(badge)
         expect(badge.textContent).toBe('Faktor fehlt · eingeben')
         const value = randomFactor()
         prompt.mockReturnValueOnce(shown(value))
@@ -92,7 +91,6 @@ describe('factor setting', () => {
         const before = randomFactor()
         GM_setValue('testFactor', before)
         const badges = [factorBadge(setting), factorBadge(setting)]
-        document.body.replaceChildren(...badges)
         const text = (value: number) => `Faktor ${shown(value)} · ändern`
         expect(badges.map((b) => b.textContent)).toEqual([text(before), text(before)])
         registerFactorMenu(setting, 'Test-Faktor ändern')
@@ -105,5 +103,18 @@ describe('factor setting', () => {
         prompt.mockReturnValueOnce(shown(after))
         menu()
         expect(badges.map((b) => b.textContent)).toEqual([text(after), text(after)])
+    })
+
+    it('follows a change made in another tab', () => {
+        const before = randomFactor()
+        GM_setValue('testFactor', before)
+        const badge = factorBadge(setting)
+        const [key, listener] = vi.mocked(GM_addValueChangeListener).mock.calls.at(-1)!
+        expect(key).toBe('testFactor')
+        let after = randomFactor()
+        while (after === before) after = randomFactor()
+        vi.mocked(GM_getValue).mockReturnValueOnce(after)
+        listener('testFactor', before, after, true)
+        expect(badge.textContent).toBe(`Faktor ${shown(after)} · ändern`)
     })
 })

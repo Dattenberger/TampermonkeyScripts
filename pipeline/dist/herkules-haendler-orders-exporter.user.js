@@ -7,6 +7,7 @@
 // @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/herkules-haendler-orders-exporter.user.js
 // @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/herkules-haendler-orders-exporter.user.js
 // @match        https://www.herkules-haendler.de/garten/de/account/*
+// @grant        GM_addValueChangeListener
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_setValue
@@ -15,7 +16,6 @@
 (function() {
   'use strict';
 	var PLAIN_DECIMAL = /^\d*[.,]?\d+$/;
-	var BADGE_ATTRIBUTE = "data-factor-setting";
 	function formatFactor(value) {
 		return value.toLocaleString("de-DE", {
 			useGrouping: false,
@@ -37,7 +37,6 @@
 			const value = parseFactor(input);
 			if (value !== null) {
 				GM_setValue(setting.key, value);
-				refreshBadges(setting);
 				return value;
 			}
 			globalThis.alert("Bitte eine Zahl größer 0 und höchstens 1 eingeben.");
@@ -55,19 +54,18 @@
 		const value = parseFactor(GM_getValue(setting.key));
 		return value === null ? "Faktor fehlt · eingeben" : `Faktor ${formatFactor(value)} · ändern`;
 	}
-	function refreshBadges(setting) {
-		for (const badge of document.querySelectorAll(`[${BADGE_ATTRIBUTE}="${setting.key}"]`)) badge.textContent = badgeText(setting);
-	}
 	function factorBadge(setting) {
 		const badge = document.createElement("button");
 		badge.type = "button";
-		badge.setAttribute(BADGE_ATTRIBUTE, setting.key);
 		badge.title = `${setting.label}\nWird nur lokal in Tampermonkey gespeichert.`;
 		badge.textContent = badgeText(setting);
 		badge.addEventListener("click", (event) => {
 			event.preventDefault();
 			event.stopPropagation();
 			askFactor(setting);
+		});
+		GM_addValueChangeListener(setting.key, () => {
+			badge.textContent = badgeText(setting);
 		});
 		return badge;
 	}

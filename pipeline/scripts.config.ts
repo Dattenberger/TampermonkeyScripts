@@ -13,7 +13,7 @@
 import versions from './versions.json' with { type: 'json' }
 
 export const AUTHOR = 'Robotico'
-const SETTINGS_GRANTS = ['GM_getValue', 'GM_setValue', 'GM_registerMenuCommand']
+const SETTINGS_GRANTS = ['GM_getValue', 'GM_setValue', 'GM_addValueChangeListener', 'GM_registerMenuCommand']
 
 export interface ScriptConfig {
     entry: string
