@@ -17,8 +17,16 @@ interface Workflow {
 
 const source = (file: string) => readFileSync(path.join(WORKFLOWS, file), 'utf8')
 const workflow = (file: string) => parse(source(file)) as Workflow
-/** Every expression and value of the workflow, without its comments (which may name what is forbidden). */
-const code = (file: string) => JSON.stringify(parse(source(file)))
+/** Every string of the parsed workflow (keys and values), without its comments, which may name
+ *  what is forbidden; line breaks inside a value stay as they are. */
+function strings(node: unknown): string[] {
+    if (typeof node === 'string') return [node]
+    if (Array.isArray(node)) return node.flatMap((item) => strings(item))
+    if (node && typeof node === 'object') return Object.entries(node).flatMap(([key, value]) => [key, ...strings(value)])
+    return []
+}
+const SECRET = /\bsecrets\s*[.[]/
+const usesSecret = (yaml: string) => strings(parse(yaml)).some((text) => SECRET.test(text))
 
 describe('workflows', () => {
     it('exist', () => {
@@ -27,7 +35,7 @@ describe('workflows', () => {
 
     it.each(files)('%s uses no secret and no pull_request_target', (file) => {
         expect(Object.keys(workflow(file).on)).not.toContain('pull_request_target')
-        expect(code(file)).not.toMatch(/\bsecrets\s*[.[]/)
+        expect(usesSecret(source(file))).toBe(false)
     })
 
     it.each(files)('%s runs with a read-only token', (file) => {
@@ -43,7 +51,10 @@ describe('workflows', () => {
         expect(on.push?.branches).toEqual(['main'])
     })
 
-    it('the secret rule catches an expression', () => {
-        expect(JSON.stringify(parse('env:\n  T: ${{ secrets.ANY }}\n  U: ${{ secrets[\'X\'] }}\n'))).toMatch(/\bsecrets\s*[.[]/)
+    it('the secret rule catches an expression, also one split over lines', () => {
+        expect(usesSecret('env:\n  T: ${{ secrets.ANY }}\n')).toBe(true)
+        expect(usesSecret("steps:\n  - with:\n      t: ${{ secrets['X'] }}\n")).toBe(true)
+        expect(usesSecret('env:\n  T: |\n    ${{ secrets\n      .ANY }}\n')).toBe(true)
+        expect(usesSecret('# no secrets.ANY here\nenv:\n  T: plain\n')).toBe(false)
     })
 })
