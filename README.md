@@ -122,7 +122,7 @@ from the browser, for example `tailscale serve`:
 
 ```sh
 cd pipeline
-SCRIPT=herkules-haendler-orders-exporter DEV_PORT=<port> npm run dev
+SCRIPT=herkules-haendler-orders-exporter DEV_HOST=<dev-host> DEV_PORT=<port> npm run dev
 # in a second shell, once:
 tailscale serve --bg --https=<port> http://127.0.0.1:<port>
 ```
@@ -130,7 +130,9 @@ tailscale serve --bg --https=<port> http://127.0.0.1:<port>
 Open `https://<dev-host>:<port>/` in the browser with Tampermonkey. The page
 forwards to the install script; install it next to (or instead of) the released
 one. It loads the branch's code live from the dev server, with hot reload over
-`wss` on the same port (`DEV_PORT` switches that on). Local settings are kept per
+`wss` on the same port, and keeps updating from there, never from `main`. The
+server answers only requests for `DEV_HOST` (Vite's DNS-rebinding guard). Local
+settings are kept per
 installed script, so the dev copy asks for its own values. Pages with a strict
 Content-Security-Policy may block the live module; then build the branch
 (`npm run build`) and install `pipeline/dist/<name>.user.js` from the branch

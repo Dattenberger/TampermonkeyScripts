@@ -7,8 +7,8 @@
 //                                                       update would write (CI)
 //
 // The base is main as the branch will meet it: the merge-base with origin/main by default, the
-// first parent of the merge commit in a PR's CI. A base without versions.json (the commit that
-// introduces it) takes the branch's own file as base.
+// first parent of the merge commit in a PR's CI. A base without versions.json (main before the
+// change that introduces it) takes the file as that change first committed it: the seed.
 
 import { execFileSync, execSync } from 'node:child_process'
 import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -35,13 +35,20 @@ function writeVersions(versions: Versions): void {
     writeFileSync(VERSIONS_FILE, `${JSON.stringify(sorted, undefined, 4)}\n`)
 }
 
-function baseVersions(base: string, current: Versions): Versions {
+function versionsAt(revision: string): Versions | undefined {
     try {
-        return JSON.parse(git('show', `${base}:pipeline/versions.json`)) as Versions
+        return JSON.parse(git('show', `${revision}:pipeline/versions.json`)) as Versions
     } catch {
-        console.log(`versions: ${base} has no pipeline/versions.json — the branch's file is the base (bootstrap)`)
-        return current
+        return undefined
     }
+}
+
+function baseVersions(base: string): Versions {
+    const onBase = versionsAt(base)
+    if (onBase) return onBase
+    const seed = git('log', '--diff-filter=A', '--format=%H', 'HEAD', '--', 'versions.json').split('\n').at(-1)
+    console.log(`versions: ${base} has no pipeline/versions.json — the seed of ${seed || 'the working tree'} is the base`)
+    return (seed && versionsAt(seed)) || readVersions()
 }
 
 function build(name?: string): void {
@@ -76,7 +83,7 @@ function main(): number {
     const base = values.base ?? git('merge-base', 'HEAD', 'origin/main')
     build()
     const current = readVersions()
-    const expected = expectedVersions({ base: baseVersions(base, current), current, hashes: bundleHashes(), level })
+    const expected = expectedVersions({ base: baseVersions(base), current, hashes: bundleHashes(), level })
 
     if (command === 'update') {
         const bumped = Object.keys(expected).filter((name) => current[name]?.version !== expected[name]!.version)
