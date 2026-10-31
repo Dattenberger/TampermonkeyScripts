@@ -3,7 +3,7 @@
 // the answer is the whole page with the document as a modal. The flow repeats that POST with
 // fetch, parses the modal and builds the CSV in the browser.
 
-import { getFactor, type FactorSetting } from '@lib/settings'
+import { factorBadge, getFactor, type FactorSetting } from '@lib/settings'
 import { parseOrderDate, parsePositions, parseReferences } from './parse.js'
 import { downloadCsv, toArticleQuantityRows, toCsv, toJtlRows } from './rows.js'
 
@@ -74,13 +74,18 @@ export async function exportOrder(form: HTMLFormElement, button: HTMLButtonEleme
     }
 }
 
+/** The portal's link-button look, spaced from its left neighbour. */
+function styled<T extends HTMLElement>(element: T, className: string): T {
+    element.className = `buttonLink ${className}`
+    element.style.marginLeft = '12px'
+    return element
+}
+
 function makeButton(form: HTMLFormElement, text: string, title: string, format: ExportFormat): HTMLButtonElement {
-    const button = document.createElement('button')
+    const button = styled(document.createElement('button'), 'herkules-export-btn')
     button.type = 'button'
-    button.className = 'buttonLink herkules-export-btn'
     button.textContent = text
     button.title = title
-    button.style.marginLeft = '12px'
     button.addEventListener('click', (event) => {
         event.preventDefault()
         event.stopPropagation()
@@ -89,7 +94,8 @@ function makeButton(form: HTMLFormElement, text: string, title: string, format: 
     return button
 }
 
-/** Adds the two export buttons after "Details" of every order row, once per form. */
+/** Adds the two export buttons after "Details" of every order row, once per form, and beside the
+ *  CSV button the discount factor it applies, changeable with one click. */
 export function attachButtons(): void {
     for (const form of document.querySelectorAll<HTMLFormElement>('form[action*="webshop_document_history"]')) {
         const details = form.querySelector('button[name="view_document_card"]')
@@ -97,6 +103,7 @@ export function attachButtons(): void {
         form.dataset.herkulesExport = '1'
         details.after(
             makeButton(form, 'CSV', 'Export CSV für JTL (gleiches Format wie Husqvarna-Exporter)', 'jtl'),
+            styled(factorBadge(DISCOUNT_FACTOR), 'herkules-factor-btn'),
             makeButton(form, 'Artikel;Menge', 'Export Artikel;Menge (Reimport)', 'artikel-menge'),
         )
     }

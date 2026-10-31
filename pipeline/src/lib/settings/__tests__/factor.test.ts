@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getFactor, parseFactor, registerFactorMenu } from '@lib/settings'
+import { factorBadge, getFactor, parseFactor, registerFactorMenu } from '@lib/settings'
 
 const setting = { key: 'testFactor', label: 'Test-Faktor' }
+
+/** A random factor in (0, 1) with three decimals, so no test carries a fixed factor value. */
+const randomFactor = () => (1 + Math.floor(Math.random() * 998)) / 1000
+const shown = (value: number) => String(value).replace('.', ',')
 
 describe('factor setting', () => {
     const prompt = vi.fn<(message?: string, value?: string) => string | null>()
@@ -71,5 +75,35 @@ describe('factor setting', () => {
         prompt.mockReturnValueOnce('0,456')
         call[1]()
         expect(GM_getValue('testFactor')).toBe(0.456)
+    })
+
+    it('shows a missing factor on the badge and asks for it on click', () => {
+        const badge = factorBadge(setting)
+        document.body.replaceChildren(badge)
+        expect(badge.textContent).toBe('Faktor fehlt · eingeben')
+        const value = randomFactor()
+        prompt.mockReturnValueOnce(shown(value))
+        badge.click()
+        expect(GM_getValue('testFactor')).toBe(value)
+        expect(badge.textContent).toBe(`Faktor ${shown(value)} · ändern`)
+    })
+
+    it('updates every badge of the setting on a change from the menu, and none on cancel', () => {
+        const before = randomFactor()
+        GM_setValue('testFactor', before)
+        const badges = [factorBadge(setting), factorBadge(setting)]
+        document.body.replaceChildren(...badges)
+        const text = (value: number) => `Faktor ${shown(value)} · ändern`
+        expect(badges.map((b) => b.textContent)).toEqual([text(before), text(before)])
+        registerFactorMenu(setting, 'Test-Faktor ändern')
+        const menu = vi.mocked(GM_registerMenuCommand).mock.calls[0]![1]
+        prompt.mockReturnValueOnce(null)
+        menu()
+        expect(badges[1]!.textContent).toBe(text(before))
+        let after = randomFactor()
+        while (after === before) after = randomFactor()
+        prompt.mockReturnValueOnce(shown(after))
+        menu()
+        expect(badges.map((b) => b.textContent)).toEqual([text(after), text(after)])
     })
 })

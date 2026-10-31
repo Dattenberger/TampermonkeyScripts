@@ -73,5 +73,7 @@ describe('herkules export', () => {
         attachButtons()
         const labels = [...document.querySelectorAll('.herkules-export-btn')].map((b) => b.textContent)
         expect(labels).toEqual(['CSV', 'Artikel;Menge'])
+        const row = [...document.querySelectorAll('.buttonLink')].map((b) => b.textContent)
+        expect(row).toEqual(['CSV', 'Faktor fehlt · eingeben', 'Artikel;Menge'])
     })
 })
