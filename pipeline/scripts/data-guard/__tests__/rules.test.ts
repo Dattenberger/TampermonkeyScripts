@@ -12,6 +12,13 @@ describe('public data guard', () => {
             'tailnet address: 100.64.0.1',
             'tailnet address: 100.127.255.1',
         ])
+        expect(rules('http://[fd7a:115c:a1e0::1]/x')).toEqual(['tailnet address: fd7a:115c:a1e0::1'])
+        expect(rules('10.0.0.1 172.16.0.1 172.31.9.9 192.168.1.10')).toEqual([
+            'private address: 10.0.0.1',
+            'private address: 172.16.0.1',
+            'private address: 172.31.9.9',
+            'private address: 192.168.1.10',
+        ])
     })
 
     it('allows only the published role mailboxes of the company domains', () => {
@@ -24,6 +31,7 @@ describe('public data guard', () => {
 
     it('leaves ordinary code alone', () => {
         expect(rules('globalThis.localStorage.getItem(key); config.local(); const ip = "100.10.0.1"; vm-ready')).toEqual([])
+        expect(rules('172.32.0.1 192.169.0.1 version 10.1.2.3.4')).toEqual([])
     })
 
     it('reports the line of each finding', () => {

@@ -23,7 +23,11 @@ const RULES: readonly Rule[] = [
     { name: 'tailnet host', pattern: /\.ts\.net\b|\btailnet\b/gi },
     { name: 'internal domain', pattern: /\b[\w-]+\.local\b(?![\w(])/gi },
     { name: 'internal host', pattern: /\b(?:vm|srv)-[a-z]+\d+\b/gi },
-    { name: 'tailnet address', pattern: /\b100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}\b/g },
+    { name: 'tailnet address', pattern: /\b100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}\b|\bfd7a:115c:a1e0:[\da-f:]*/gi },
+    {
+        name: 'private address',
+        pattern: /\b(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}\b(?!\.\d)/g,
+    },
     { name: 'company mail address', pattern: /[\w.+-]+@(?:dattenberger\.com|robotico\.de)\b/gi },
 ]
 
