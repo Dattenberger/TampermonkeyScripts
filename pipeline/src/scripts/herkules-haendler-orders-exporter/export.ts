@@ -72,7 +72,7 @@ export async function exportOrder(form: HTMLFormElement, button: HTMLButtonEleme
         const rows = toJtlRows(positions, orderNumber, parseOrderDate(doc), await fetchReferences(form), discountFactor)
         downloadCsv(toCsv(rows), `herkules-${orderNumber}.csv`)
         const missing = rows.filter((row) => !row['Interne Bestellnummer']).length
-        if (missing > 0) setButtonState(button, 'warning', `${missing} von ${rows.length} Positionen ohne Referenz: Der Import in JTL findet sie nicht.`)
+        if (missing > 0) setButtonState(button, 'warning', `${missing} von ${rows.length} Positionen ohne D-BE-Referenz: Der Import in JTL findet sie nicht.`)
         else setButtonState(button, 'success')
     } catch (error) {
         console.error('[HerkulesExporter]', orderNumber, error)
@@ -113,9 +113,10 @@ function makeReference(form: HTMLFormElement): HTMLElement {
     referenceQueue.push(async () => {
         try {
             const reference = await fetchFirstReference(form)
-            label.textContent = reference ? (/^D-BE\d+/.exec(reference)?.[0] ?? reference) : 'Referenz fehlt'
-            label.classList.toggle('is-missing', !reference)
-            label.title = reference ? `Ihre Referenz: ${reference}` : 'Noch kein Lieferschein oder keine Rechnung mit „Ihre Referenz“.'
+            // Free text such as a customer's name is shown as it is, marked: the import cannot use it.
+            label.textContent = reference ?? 'Referenz fehlt'
+            label.classList.toggle('is-missing', !reference?.startsWith('D-BE'))
+            label.title = reference ? `Ihre Referenz: ${reference}` : 'In Lieferschein und Rechnung steht keine „Ihre Referenz“.'
         } catch (error) {
             console.error('[HerkulesExporter]', field(form, 'document_no'), error)
             label.textContent = 'Referenz ?'

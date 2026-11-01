@@ -23,13 +23,14 @@ const CSS = `
     .${CSV_BUTTON}.is-success { background: #28a745; border-color: #28a745; color: #fff; }
     .${CSV_BUTTON}.is-warning { background: #ffc107; border-color: #ffc107; color: #212529; }
     .${CSV_BUTTON}.is-error { background: #dc3545; border-color: #dc3545; color: #fff; }
-    .${REFERENCE} { margin-left: 10px; color: #3d3d3c; font: 12px/16px Arial, sans-serif; white-space: nowrap; }
+    .${REFERENCE} { display: block; margin-top: 4px; color: #3d3d3c; font: 13px/18px Arial, sans-serif; text-align: right; }
     .${REFERENCE}.is-missing { color: #b02a37; }
     #${PANEL_ID} {
-        position: fixed; top: 140px; right: 16px; z-index: 1000; width: 190px; padding: 14px 16px;
+        float: right; box-sizing: border-box; width: 190px; margin: 0 0 12px 24px; padding: 12px 14px;
         background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, .12);
         color: #3d3d3c; font: 13px/18px Arial, sans-serif;
     }
+    #${PANEL_ID}.is-floating { float: none; position: fixed; right: 16px; bottom: 16px; z-index: 1000; margin: 0; }
     #${PANEL_ID} .herkules-panel-title { margin: 0 0 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; font-size: 12px; }
     #${PANEL_ID} label { display: block; font-weight: 600; }
     #${PANEL_ID} input {
@@ -59,7 +60,7 @@ export function setButtonState(button: HTMLButtonElement, state: ButtonState, de
     if (detail) button.title = detail
 }
 
-/** The panel with the factor field, on the right of the page, once. */
+/** The panel with the factor field, on the right, once. */
 export function attachPanel(setting: FactorSetting): void {
     if (document.querySelector(`#${PANEL_ID}`)) return
     GM_addStyle(CSS)
@@ -75,7 +76,13 @@ export function attachPanel(setting: FactorSetting): void {
     const hint = document.createElement('small')
     hint.textContent = 'Nur lokal in diesem Browser gespeichert.'
     panel.append(title, label, hint)
-    document.body.append(panel)
+    // Beside the page heading, in the free space above the table; without one, in a corner.
+    const heading = document.querySelector('h1')
+    if (heading) heading.before(panel)
+    else {
+        panel.classList.add('is-floating')
+        document.body.append(panel)
+    }
 }
 
 /** Takes the user to the factor field when an export needs a value. */

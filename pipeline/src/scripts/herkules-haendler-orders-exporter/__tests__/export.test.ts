@@ -46,14 +46,14 @@ describe('herkules export', () => {
         expect(text.split('\r\n')[1]).toBe('ART-0001;D-BE0000001-I;ART-X1;Testartikel Eins;6;0,5059;01.02.2030;N;AB-0001')
         // ART-0002 has no reference in the fixtures: the file is written, the button says so.
         expect(button.textContent).toBe('⚠ CSV')
-        expect(button.title).toContain('1 von 2 Positionen ohne Referenz')
+        expect(button.title).toContain('1 von 2 Positionen ohne D-BE-Referenz')
     })
 
     it('without a stored factor loads nothing, says why and takes the user to the field', async () => {
         GM_setValue(DISCOUNT_FACTOR.key, undefined)
         const form = orderForm()
         attachExport()
-        await vi.waitFor(() => expect(document.querySelector('.herkules-reference')?.textContent).toBe('D-BE0000001'))
+        await vi.waitFor(() => expect(document.querySelector('.herkules-reference')?.textContent).toBe('D-BE0000001 VPE=3 ART-X1'))
         fetchMock.mockClear()
         const button = document.querySelector<HTMLButtonElement>('.herkules-csv-btn')!
         await exportOrder(form, button)
@@ -71,7 +71,19 @@ describe('herkules export', () => {
         expect([...document.querySelectorAll('.herkules-csv-btn')].map((b) => b.textContent)).toEqual(['CSV'])
         expect(document.querySelectorAll('.herkules-reference')).toHaveLength(1)
         expect(document.querySelectorAll('#herkules-export-panel')).toHaveLength(1)
-        await vi.waitFor(() => expect(document.querySelector('.herkules-reference')?.textContent).toBe('D-BE0000001'))
+        await vi.waitFor(() => expect(document.querySelector('.herkules-reference')?.textContent).toBe('D-BE0000001 VPE=3 ART-X1'))
+    })
+
+    it('marks a reference the import cannot use, and places the panel beside the heading', async () => {
+        const shipment = pages['LS-0001']!
+        pages['LS-0001'] = shipment.replace('D-BE0000001 VPE=3 ART-X1', 'Freitext')
+        document.body.innerHTML = `<h1>Bestellungen</h1>${HISTORY_PAGE}`
+        attachExport()
+        const label = () => document.querySelector('.herkules-reference')
+        await vi.waitFor(() => expect(label()?.textContent).toBe('Freitext'))
+        expect(label()?.classList.contains('is-missing')).toBe(true)
+        expect(document.querySelector('h1')?.previousElementSibling?.id).toBe('herkules-export-panel')
+        pages['LS-0001'] = shipment
     })
 
     it('shows when an order has no reference yet, without asking the portal for a document it does not have', async () => {

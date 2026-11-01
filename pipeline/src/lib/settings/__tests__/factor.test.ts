@@ -49,17 +49,20 @@ describe('factor setting', () => {
         expect(input.getAttribute('aria-invalid')).toBe('false')
     })
 
-    it('stores every valid input at once and leaves the value alone on an invalid one', () => {
+    it('stores a valid input at once, and an empty or invalid one removes the value and stays visible', () => {
         const input = factorInput(setting)
         const factor = randomFactor()
         type(input, shown(factor))
-        expect(GM_getValue(setting.key)).toBe(factor)
+        expect(readFactor(setting)).toBe(factor)
         expect(input.getAttribute('aria-invalid')).toBe('false')
-        type(input, '2')
-        expect(GM_getValue(setting.key)).toBe(factor)
-        expect(input.getAttribute('aria-invalid')).toBe('true')
-        input.dispatchEvent(new Event('blur'))
-        expect(input.value).toBe(shown(factor))
+        for (const bad of ['', '2']) {
+            type(input, shown(factor))
+            type(input, bad)
+            expect(readFactor(setting)).toBeNull()
+            expect(input.getAttribute('aria-invalid')).toBe('true')
+            input.dispatchEvent(new Event('blur'))
+            expect(input.value).toBe(bad)
+        }
     })
 
     it('follows a change from elsewhere unless the user is typing', () => {

@@ -45,12 +45,11 @@
 		show();
 		input.addEventListener("input", () => {
 			const value = parseFactor(input.value);
-			if (value !== null) GM_setValue(setting.key, value);
+			GM_setValue(setting.key, value);
 			input.setAttribute("aria-invalid", String(value === null));
 		});
-		input.addEventListener("blur", show);
-		GM_addValueChangeListener(setting.key, () => {
-			if (document.activeElement !== input) show();
+		GM_addValueChangeListener(setting.key, (_key, _old, _new, remote) => {
+			if (remote && document.activeElement !== input) show();
 		});
 		return input;
 	}
@@ -161,13 +160,14 @@
     .${CSV_BUTTON}.is-success { background: #28a745; border-color: #28a745; color: #fff; }
     .${CSV_BUTTON}.is-warning { background: #ffc107; border-color: #ffc107; color: #212529; }
     .${CSV_BUTTON}.is-error { background: #dc3545; border-color: #dc3545; color: #fff; }
-    .${REFERENCE} { margin-left: 10px; color: #3d3d3c; font: 12px/16px Arial, sans-serif; white-space: nowrap; }
+    .${REFERENCE} { display: block; margin-top: 4px; color: #3d3d3c; font: 13px/18px Arial, sans-serif; text-align: right; }
     .${REFERENCE}.is-missing { color: #b02a37; }
     #${PANEL_ID} {
-        position: fixed; top: 140px; right: 16px; z-index: 1000; width: 190px; padding: 14px 16px;
+        float: right; box-sizing: border-box; width: 190px; margin: 0 0 12px 24px; padding: 12px 14px;
         background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, .12);
         color: #3d3d3c; font: 13px/18px Arial, sans-serif;
     }
+    #${PANEL_ID}.is-floating { float: none; position: fixed; right: 16px; bottom: 16px; z-index: 1000; margin: 0; }
     #${PANEL_ID} .herkules-panel-title { margin: 0 0 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; font-size: 12px; }
     #${PANEL_ID} label { display: block; font-weight: 600; }
     #${PANEL_ID} input {
@@ -211,7 +211,12 @@
 		const hint = document.createElement("small");
 		hint.textContent = "Nur lokal in diesem Browser gespeichert.";
 		panel.append(title, label, hint);
-		document.body.append(panel);
+		const heading = document.querySelector("h1");
+		if (heading) heading.before(panel);
+		else {
+			panel.classList.add("is-floating");
+			document.body.append(panel);
+		}
 	}
 	function focusFactor() {
 		document.querySelector(`#${PANEL_ID} input`)?.focus();
@@ -269,7 +274,7 @@
 			const rows = toJtlRows(positions, orderNumber, parseOrderDate(doc), await fetchReferences(form), discountFactor);
 			downloadCsv(toCsv(rows), `herkules-${orderNumber}.csv`);
 			const missing = rows.filter((row) => !row["Interne Bestellnummer"]).length;
-			if (missing > 0) setButtonState(button, "warning", `${missing} von ${rows.length} Positionen ohne Referenz: Der Import in JTL findet sie nicht.`);
+			if (missing > 0) setButtonState(button, "warning", `${missing} von ${rows.length} Positionen ohne D-BE-Referenz: Der Import in JTL findet sie nicht.`);
 			else setButtonState(button, "success");
 		} catch (error) {
 			console.error("[HerkulesExporter]", orderNumber, error);
@@ -305,9 +310,9 @@
 		referenceQueue.push(async () => {
 			try {
 				const reference = await fetchFirstReference(form);
-				label.textContent = reference ? /^D-BE\d+/.exec(reference)?.[0] ?? reference : "Referenz fehlt";
-				label.classList.toggle("is-missing", !reference);
-				label.title = reference ? `Ihre Referenz: ${reference}` : "Noch kein Lieferschein oder keine Rechnung mit „Ihre Referenz“.";
+				label.textContent = reference ?? "Referenz fehlt";
+				label.classList.toggle("is-missing", !reference?.startsWith("D-BE"));
+				label.title = reference ? `Ihre Referenz: ${reference}` : "In Lieferschein und Rechnung steht keine „Ihre Referenz“.";
 			} catch (error) {
 				console.error("[HerkulesExporter]", field(form, "document_no"), error);
 				label.textContent = "Referenz ?";
