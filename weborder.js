@@ -23,7 +23,7 @@
 
     function parseFactor(input) {
         const text = String(input ?? '').trim();
-        const value = /^\d*[.,]?\d+$/.test(text) ? Number(text.replace(',', '.')) : NaN;
+        const value = typeof input === 'number' ? input : /^\d*[.,]?\d+$/.test(text) ? Number(text.replace(',', '.')) : NaN;
         return value > 0 && value <= 1 ? value : null;
     }
 
@@ -36,7 +36,7 @@
             const shown = readFactor();
             const input = globalThis.prompt(
                 'Skonto-Faktor für Husqvarna (Faktor auf den Netto-Preis).\nWird nur lokal in Tampermonkey gespeichert.',
-                shown === null ? '' : String(shown).replace('.', ','),
+                shown === null ? '' : shown.toLocaleString('de-DE', { useGrouping: false, maximumFractionDigits: 20 }),
             );
             if (input === null) return null;
             const value = parseFactor(input);

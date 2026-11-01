@@ -51,6 +51,8 @@ describe('local discount factor in the root scripts', () => {
         GM_setValue('husqvarnaDiscountFactor', factor)
         expect(script.readFactor()).toBe(factor)
         for (const bad of ['abc', 0, 2, -1, '']) expect(script.parseFactor(bad)).toBeNull()
+        // String(1e-7) is '1e-7': a stored number must not pass through the text form.
+        expect(script.parseFactor(1e-7)).toBe(1e-7)
     })
 
     it('asks until the input is valid, stores it, and stores nothing when cancelled', () => {

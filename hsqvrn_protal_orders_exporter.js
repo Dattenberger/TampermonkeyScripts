@@ -442,7 +442,7 @@
 
     function parseFactor(input) {
         const text = String(input ?? '').trim();
-        const value = /^\d*[.,]?\d+$/.test(text) ? Number(text.replace(',', '.')) : NaN;
+        const value = typeof input === 'number' ? input : /^\d*[.,]?\d+$/.test(text) ? Number(text.replace(',', '.')) : NaN;
         return value > 0 && value <= 1 ? value : null;
     }
 
@@ -455,7 +455,7 @@
             const shown = readFactor();
             const input = globalThis.prompt(
                 'Skonto-Faktor für Husqvarna (Faktor auf den Netto-Preis).\nWird nur lokal in Tampermonkey gespeichert.',
-                shown === null ? '' : String(shown).replace('.', ','),
+                shown === null ? '' : shown.toLocaleString('de-DE', { useGrouping: false, maximumFractionDigits: 20 }),
             );
             if (input === null) return null;
             const value = parseFactor(input);
@@ -778,6 +778,9 @@
     function shouldRetryError(error) {
         const message = error.message || '';
 
+        // A missing local setting does not come back with another request
+        if (error.name === 'MissingFactorError') return false;
+
         // The portal named its own failure (e.g. "Error trying to resolve field 'get'.");
         // it is often transient, so it is retried like a server error
         if (error.name === 'PortalGraphQLError') return true;
@@ -918,7 +921,11 @@
      */
     function prepareCsvDataToExport(rows, innerOrderNumber, outerOrderNumber) {
         const discountFactor = readFactor();
-        if (discountFactor === null) throw new Error('Skonto-Faktor fehlt: bitte im Tampermonkey-Menü eintragen.');
+        if (discountFactor === null) {
+            const error = new Error('Skonto-Faktor fehlt: bitte im Tampermonkey-Menü eintragen.');
+            error.name = 'MissingFactorError';
+            throw error;
+        }
         return rows.map((data) => {
             let vpe = parseInt(Utils.nullSafeMatch(data['Kommentar'], /^D-BE\S*\s*VPE=(\d+)/, 1), 10);
             if (!Number.isFinite(vpe) || vpe < 1) vpe = 1;
@@ -1811,6 +1818,7 @@
     }
 
     function initializeScript() {
+        if (readFactor() === null) askFactor();
         // Set up custom order input observer (runs independently)
         setupCustomOrderInputObserver();
 

@@ -25,7 +25,7 @@
 
     function parseFactor(input) {
         const text = String(input ?? '').trim();
-        const value = /^\d*[.,]?\d+$/.test(text) ? Number(text.replace(',', '.')) : NaN;
+        const value = typeof input === 'number' ? input : /^\d*[.,]?\d+$/.test(text) ? Number(text.replace(',', '.')) : NaN;
         return value > 0 && value <= 1 ? value : null;
     }
 
@@ -38,7 +38,7 @@
             const shown = readFactor();
             const input = globalThis.prompt(
                 'Skonto-Faktor für Husqvarna (Faktor auf den Netto-Preis).\nWird nur lokal in Tampermonkey gespeichert.',
-                shown === null ? '' : String(shown).replace('.', ','),
+                shown === null ? '' : shown.toLocaleString('de-DE', { useGrouping: false, maximumFractionDigits: 20 }),
             );
             if (input === null) return null;
             const value = parseFactor(input);
@@ -210,7 +210,7 @@
                 Artikelnummer: artikelnummer,
                 Lieferantenbezeichnung: lieferantenbezeichnung,
                 menge: menge,
-                "EK netto": readFactor() === null ? "" : skontoBetrag(ekGesamt / menge),
+                "EK netto": skontoBetrag(ekGesamt / menge),
                 "Lieferdatum": lieferdatum,
                 "Freiposition": "N"
             })
@@ -231,6 +231,8 @@
 
         if(!updateDownload)
             download.attr('href', 'data:text/plain;charset=utf-8,' + "");
+        else if(readFactor() === null)
+            download.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent("Skonto-Faktor fehlt: bitte im Tampermonkey-Menü eintragen."));
         else if(interneBestellnummern.size > 1)
             download.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent("Zu viele interne Bestellnummern: " + [...interneBestellnummern.values()].join(", ")));
         else
