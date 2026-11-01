@@ -5,8 +5,8 @@
 
 import { readFactor, type FactorSetting } from '@lib/settings'
 import { parseOrderDate, parsePositions, parseReferences } from './parse.js'
-import { downloadCsv, reimportNumber, toCsv, toJtlRows } from './rows.js'
-import { attachPanel, CSV_BUTTON, focusFactor, REFERENCE, setButtonState, STATUS } from './ui.js'
+import { downloadCsv, orderNumberOf, toCsv, toJtlRows } from './rows.js'
+import { askOrderNumber, attachPanel, CSV_BUTTON, focusFactor, setButtonState, STATUS } from './ui.js'
 
 /** Discount factor per the supplier's terms: a local setting, never a value in this public code. */
 export const DISCOUNT_FACTOR: FactorSetting = {
@@ -37,15 +37,6 @@ function relatedForms(orderForm: HTMLFormElement): HTMLFormElement[] {
     return [...byType('shipment'), ...byType('invoice')]
 }
 
-/** Our order number as typed in the basket, for the overview: the first hit, as few requests as possible. */
-async function fetchFirstReference(orderForm: HTMLFormElement): Promise<string | undefined> {
-    for (const form of relatedForms(orderForm)) {
-        const [reference] = parseReferences(await fetchDocument(form)).values()
-        if (reference) return reference
-    }
-    return undefined
-}
-
 async function fetchReferences(orderForm: HTMLFormElement): Promise<Map<string, string>> {
     const references = new Map<string, string>()
     for (const form of relatedForms(orderForm)) {
@@ -69,11 +60,17 @@ export async function exportOrder(form: HTMLFormElement, button: HTMLButtonEleme
         const doc = await fetchDocument(form)
         const positions = parsePositions(doc)
         if (positions.length === 0) throw new Error('keine Positionen gefunden')
-        const rows = toJtlRows(positions, orderNumber, parseOrderDate(doc), await fetchReferences(form), discountFactor)
+        const references = await fetchReferences(form)
+        // The portal has no field for our number: a reference typed in the basket is only a suggestion.
+        const suggestion = [...references.values()].map((reference) => orderNumberOf(reference)).find(Boolean) ?? ''
+        const orderNumberInJtl = await askOrderNumber(status, suggestion)
+        if (orderNumberInJtl === null) {
+            setButtonState(button, 'idle', status)
+            return
+        }
+        const rows = toJtlRows(positions, orderNumber, parseOrderDate(doc), references, discountFactor, orderNumberInJtl)
         downloadCsv(toCsv(rows), `herkules-${orderNumber}.csv`)
-        const missing = rows.filter((row) => !row['Interne Bestellnummer']).length
-        if (missing > 0) setButtonState(button, 'warning', status, `${missing} von ${rows.length} Positionen ohne D-BE-Referenz: Der Import in JTL findet sie nicht.`)
-        else setButtonState(button, 'success', status)
+        setButtonState(button, 'success', status)
     } catch (error) {
         console.error('[HerkulesExporter]', orderNumber, error)
         setButtonState(button, 'error', status, error instanceof Error ? error.message : String(error))
@@ -101,52 +98,14 @@ function makeButton(form: HTMLFormElement, status: HTMLElement): HTMLButtonEleme
     return button
 }
 
-const REFERENCE_REQUESTS = 2
-const referenceQueue: (() => Promise<void>)[] = []
-let referenceWorkers = 0
-
-/** Works through the rows of a page with few requests at a time: the portal is a shop, not an API. */
-async function runReferenceQueue(): Promise<void> {
-    if (referenceWorkers >= REFERENCE_REQUESTS) return
-    referenceWorkers += 1
-    for (let job = referenceQueue.shift(); job; job = referenceQueue.shift()) await job()
-    referenceWorkers -= 1
-}
-
-function makeReference(form: HTMLFormElement): HTMLElement {
-    const label = document.createElement('span')
-    label.className = REFERENCE
-    label.textContent = 'Referenz lädt …'
-    referenceQueue.push(async () => {
-        try {
-            const reference = await fetchFirstReference(form)
-            // Free text such as a customer's name is shown as it is, marked: the import cannot use it.
-            label.textContent = reference ?? 'Referenz fehlt'
-            label.classList.toggle('is-missing', !reference)
-            const usable = Boolean(reference && reimportNumber(reference))
-            label.classList.toggle('is-unusable', Boolean(reference) && !usable)
-            if (reference) {label.title = usable ? `Ihre Referenz: ${reference}` : `Keine D-BE-Nummer: Der Import in JTL findet diese Bestellung nicht. Ihre Referenz: ${reference}`}
-            else {label.title = 'In Lieferschein und Rechnung steht keine „Ihre Referenz“.'}
-        } catch (error) {
-            console.error('[HerkulesExporter]', field(form, 'document_no'), error)
-            label.textContent = 'Referenz nicht geladen'
-            label.title = 'Lieferschein oder Rechnung konnten nicht geladen werden. Seite neu laden.'
-            label.classList.add('is-missing')
-        }
-    })
-    return label
-}
-
-/** Adds the panel once, and to every order row, once per form, the CSV button and our reference after "Details". */
+/** Adds the panel once, and to every order row, once per form, the CSV button after "Details". */
 export function attachExport(): void {
-    const forms = [...document.querySelectorAll<HTMLFormElement>('form[action*="webshop_document_history"]')].filter(
-        (form) => field(form, 'document_type') === 'order' && !form.dataset.herkulesExport && form.querySelector('button[name="view_document_card"]'),
-    )
     attachPanel(DISCOUNT_FACTOR)
-    for (const form of forms) {
+    for (const form of document.querySelectorAll<HTMLFormElement>('form[action*="webshop_document_history"]')) {
+        const details = form.querySelector('button[name="view_document_card"]')
+        if (field(form, 'document_type') !== 'order' || form.dataset.herkulesExport || !details) continue
         form.dataset.herkulesExport = '1'
         const status = makeStatus()
-        form.querySelector('button[name="view_document_card"]')!.after(makeButton(form, status), makeReference(form), status)
+        details.after(makeButton(form, status), status)
     }
-    for (let i = 0; i < Math.min(forms.length, REFERENCE_REQUESTS); i += 1) void runReferenceQueue()
 }

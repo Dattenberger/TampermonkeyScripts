@@ -11,16 +11,22 @@ function group(text: string, regex: RegExp): string {
     return regex.exec(text)?.[1] ?? ''
 }
 
-/** Our order number from a reference, as the reimported order is named; '' without one. */
-export function reimportNumber(reference: string): string {
-    const orderNumber = group(reference, /^(D-BE\d+)/)
-    return orderNumber && `${orderNumber}-I`
+const ORDER_NUMBER = /^D-BE\d+/i
+
+/** Our order number at the start of a reference, as JTL writes it; '' without one. */
+export function orderNumberOf(reference: string): string {
+    return ORDER_NUMBER.exec(reference.trim())?.[0].toUpperCase() ?? ''
+}
+
+/** The number the user typed for an export: D-BE… with or without -I; null for anything else. */
+export function parseTypedOrderNumber(input: string): string | null {
+    return /^D-BE\d+(?:-I)?$/i.test(input.trim()) ? orderNumberOf(input) : null
 }
 
 /**
  * Same columns and order as the Husqvarna portal orders exporter (JTL purchase-order import).
  * The reference follows the same conventions as there: "D-BE<nr> [VPE=<n>] [<our article no>]".
- * It is typed without a suffix; a reimported order is named D-BE<nr>-I in JTL, so the suffix comes here.
+ * `orderNumber` is the original JTL order the user named; a reimported order is D-BE<nr>-I in JTL.
  */
 export function toJtlRows(
     positions: Position[],
@@ -28,6 +34,7 @@ export function toJtlRows(
     deliveryDate: string,
     references: Map<string, string>,
     discountFactor: number,
+    orderNumberInJtl: string,
 ): CsvRow[] {
     return positions.map((p) => {
         const reference = references.get(p.articleNumber) ?? ''
@@ -37,7 +44,7 @@ export function toJtlRows(
         const price = Number.isFinite(p.unitPrice) && quantity > 0 ? (p.unitPrice * p.quantity * discountFactor) / quantity : Number.NaN
         return {
             HAN: p.articleNumber,
-            'Interne Bestellnummer': reimportNumber(reference),
+            'Interne Bestellnummer': `${orderNumberInJtl}-I`,
             Artikelnummer: group(reference, /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/),
             Lieferantenbezeichnung: p.name,
             menge: Number.isFinite(quantity) ? quantity : '',

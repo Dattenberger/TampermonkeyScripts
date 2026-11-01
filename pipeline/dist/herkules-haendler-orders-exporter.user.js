@@ -98,11 +98,14 @@
 	function group(text, regex) {
 		return regex.exec(text)?.[1] ?? "";
 	}
-	function reimportNumber(reference) {
-		const orderNumber = group(reference, /^(D-BE\d+)/);
-		return orderNumber && `${orderNumber}-I`;
+	var ORDER_NUMBER = /^D-BE\d+/i;
+	function orderNumberOf(reference) {
+		return ORDER_NUMBER.exec(reference.trim())?.[0].toUpperCase() ?? "";
 	}
-	function toJtlRows(positions, orderNumber, deliveryDate, references, discountFactor) {
+	function parseTypedOrderNumber(input) {
+		return /^D-BE\d+(?:-I)?$/i.test(input.trim()) ? orderNumberOf(input) : null;
+	}
+	function toJtlRows(positions, orderNumber, deliveryDate, references, discountFactor, orderNumberInJtl) {
 		return positions.map((p) => {
 			const reference = references.get(p.articleNumber) ?? "";
 			const parsedVpe = Number.parseInt(group(reference, /^D-BE\S*\s*VPE=(\d+)/), 10);
@@ -111,7 +114,7 @@
 			const price = Number.isFinite(p.unitPrice) && quantity > 0 ? p.unitPrice * p.quantity * discountFactor / quantity : NaN;
 			return {
 				HAN: p.articleNumber,
-				"Interne Bestellnummer": reimportNumber(reference),
+				"Interne Bestellnummer": `${orderNumberInJtl}-I`,
 				Artikelnummer: group(reference, /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/),
 				Lieferantenbezeichnung: p.name,
 				menge: Number.isFinite(quantity) ? quantity : "",
@@ -142,9 +145,9 @@
 		setTimeout(() => URL.revokeObjectURL(url), 1e4);
 	}
 	var CSV_BUTTON = "herkules-csv-btn";
-	var REFERENCE = "herkules-reference";
 	var STATUS = "herkules-status";
 	var PANEL_ID = "herkules-export-panel";
+	var ASK = "herkules-order-number";
 	var BUTTON_TITLE = "CSV dieser Bestellung für den JTL-Import herunterladen";
 	var CSS = `
     button.${CSV_BUTTON} {
@@ -159,17 +162,18 @@
     button.${CSV_BUTTON}:focus-visible, #${PANEL_ID} input:focus-visible { outline: 2px solid #3d3d3c; outline-offset: 2px; }
     button.${CSV_BUTTON}.is-loading { background: #6f6f6f; border-color: #6f6f6f; color: #fff; cursor: progress; }
     button.${CSV_BUTTON}.is-success { background: #1e7e34; border-color: #1e7e34; color: #fff; }
-    button.${CSV_BUTTON}.is-warning { background: #ffc107; border-color: #ffc107; color: #212529; }
     button.${CSV_BUTTON}.is-error { background: #dc3545; border-color: #dc3545; color: #fff; }
     button.${CSV_BUTTON}.is-success:hover { background: #155d27; border-color: #155d27; }
-    button.${CSV_BUTTON}.is-warning:hover { background: #e0a800; border-color: #e0a800; }
     button.${CSV_BUTTON}.is-error:hover { background: #bd2130; border-color: #bd2130; }
-    .${REFERENCE}, .${STATUS} { display: block; width: 190px; max-width: 100%; margin: 4px 0 0 auto; font: 13px/18px Arial, sans-serif; text-align: right; }
-    .${REFERENCE} { color: #3d3d3c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .${REFERENCE}.is-unusable::before { content: '⚠ '; color: #b02a37; }
-    .${REFERENCE}.is-missing { color: #b02a37; }
-    .${STATUS} { color: #b02a37; font-size: 12px; line-height: 16px; }
+    .${STATUS} { display: block; width: 190px; max-width: 100%; margin: 4px 0 0 auto; color: #b02a37; font: 12px/16px Arial, sans-serif; text-align: right; }
     .${STATUS}:empty { display: none; }
+    .${ASK} { display: block; width: 230px; max-width: 100%; margin: 6px 0 0 auto; color: #3d3d3c; font: 13px/18px Arial, sans-serif; text-align: left; }
+    .${ASK} label { display: block; font-weight: 600; }
+    .${ASK} input { box-sizing: border-box; width: 100%; margin: 4px 0 6px; padding: 6px 8px; border: 1px solid #bbb; border-radius: 6px; font: 14px/18px Arial, sans-serif; }
+    .${ASK} input[aria-invalid='true'] { border-color: #dc3545; background: #fff5f5; }
+    .${ASK} small { display: block; margin-bottom: 6px; color: #6f6f6f; font-size: 11px; line-height: 14px; }
+    .${ASK} button { min-height: 26px; margin-right: 8px; padding: 4px 12px; border: 1px solid #3d3d3c; border-radius: 6px; background: #fff; color: #3d3d3c; font: 600 12px/16px Arial, sans-serif; cursor: pointer; }
+    .${ASK} button.is-primary { background: #3d3d3c; color: #fff; }
     #${PANEL_ID} {
         float: right; box-sizing: border-box; width: 190px; margin: 0 0 12px 24px; padding: 12px 14px;
         background: #fff; border: 1px solid #e0e0e0; border-radius: 8px;
@@ -190,7 +194,6 @@
 		idle: "CSV",
 		loading: "Lädt …",
 		success: "✓ CSV",
-		warning: "⚠ CSV",
 		error: "✗ CSV"
 	};
 	function setButtonState(button, state, status, detail) {
@@ -199,12 +202,59 @@
 		for (const name of [
 			"is-loading",
 			"is-success",
-			"is-warning",
 			"is-error"
 		]) button.classList.remove(name);
 		if (state !== "idle") button.classList.add(`is-${state}`);
 		button.title = detail ?? BUTTON_TITLE;
 		status.textContent = detail ?? "";
+	}
+	function askButton(text, action) {
+		const element = document.createElement("button");
+		element.type = "button";
+		element.textContent = text;
+		element.addEventListener("click", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			action();
+		});
+		return element;
+	}
+	function askOrderNumber(anchor, suggestion) {
+		return new Promise((resolve) => {
+			const box = document.createElement("span");
+			box.className = ASK;
+			const label = document.createElement("label");
+			label.textContent = "D-BE-Nummer der JTL-Bestellung";
+			const input = document.createElement("input");
+			input.type = "text";
+			input.autocomplete = "off";
+			input.placeholder = "D-BE…";
+			input.value = suggestion;
+			label.append(input);
+			const hint = document.createElement("small");
+			hint.textContent = "Mit oder ohne -I. Das -I kommt beim Export automatisch dazu.";
+			const finish = (value) => {
+				box.remove();
+				resolve(value);
+			};
+			const confirm = () => {
+				const value = parseTypedOrderNumber(input.value);
+				if (value === null) input.setAttribute("aria-invalid", "true");
+				else finish(value);
+			};
+			const ok = askButton("Exportieren", confirm);
+			ok.className = "is-primary";
+			input.addEventListener("input", () => input.removeAttribute("aria-invalid"));
+			input.addEventListener("keydown", (event) => {
+				if (event.key === "Enter") {
+					event.preventDefault();
+					confirm();
+				} else if (event.key === "Escape") finish(null);
+			});
+			box.append(label, hint, ok, askButton("Abbrechen", () => finish(null)));
+			anchor.before(box);
+			input.focus();
+		});
 	}
 	function attachPanel(setting) {
 		if (document.querySelector(`#${PANEL_ID}`)) return;
@@ -261,12 +311,6 @@
 		const byType = (type) => forms.filter((f) => field(f, "document_no") && field(f, "document_type") === type);
 		return [...byType("shipment"), ...byType("invoice")];
 	}
-	async function fetchFirstReference(orderForm) {
-		for (const form of relatedForms(orderForm)) {
-			const [reference] = parseReferences(await fetchDocument(form)).values();
-			if (reference) return reference;
-		}
-	}
 	async function fetchReferences(orderForm) {
 		const references = new Map();
 		for (const form of relatedForms(orderForm)) for (const [article, reference] of parseReferences(await fetchDocument(form))) if (!references.has(article)) references.set(article, reference);
@@ -285,11 +329,14 @@
 			const doc = await fetchDocument(form);
 			const positions = parsePositions(doc);
 			if (positions.length === 0) throw new Error("keine Positionen gefunden");
-			const rows = toJtlRows(positions, orderNumber, parseOrderDate(doc), await fetchReferences(form), discountFactor);
-			downloadCsv(toCsv(rows), `herkules-${orderNumber}.csv`);
-			const missing = rows.filter((row) => !row["Interne Bestellnummer"]).length;
-			if (missing > 0) setButtonState(button, "warning", status, `${missing} von ${rows.length} Positionen ohne D-BE-Referenz: Der Import in JTL findet sie nicht.`);
-			else setButtonState(button, "success", status);
+			const references = await fetchReferences(form);
+			const orderNumberInJtl = await askOrderNumber(status, [...references.values()].map((reference) => orderNumberOf(reference)).find(Boolean) ?? "");
+			if (orderNumberInJtl === null) {
+				setButtonState(button, "idle", status);
+				return;
+			}
+			downloadCsv(toCsv(toJtlRows(positions, orderNumber, parseOrderDate(doc), references, discountFactor, orderNumberInJtl)), `herkules-${orderNumber}.csv`);
+			setButtonState(button, "success", status);
 		} catch (error) {
 			console.error("[HerkulesExporter]", orderNumber, error);
 			setButtonState(button, "error", status, error instanceof Error ? error.message : String(error));
@@ -314,46 +361,15 @@
 		setButtonState(button, "idle", status);
 		return button;
 	}
-	var REFERENCE_REQUESTS = 2;
-	var referenceQueue = [];
-	var referenceWorkers = 0;
-	async function runReferenceQueue() {
-		if (referenceWorkers >= REFERENCE_REQUESTS) return;
-		referenceWorkers += 1;
-		for (let job = referenceQueue.shift(); job; job = referenceQueue.shift()) await job();
-		referenceWorkers -= 1;
-	}
-	function makeReference(form) {
-		const label = document.createElement("span");
-		label.className = REFERENCE;
-		label.textContent = "Referenz lädt …";
-		referenceQueue.push(async () => {
-			try {
-				const reference = await fetchFirstReference(form);
-				label.textContent = reference ?? "Referenz fehlt";
-				label.classList.toggle("is-missing", !reference);
-				const usable = Boolean(reference && reimportNumber(reference));
-				label.classList.toggle("is-unusable", Boolean(reference) && !usable);
-				if (reference) label.title = usable ? `Ihre Referenz: ${reference}` : `Keine D-BE-Nummer: Der Import in JTL findet diese Bestellung nicht. Ihre Referenz: ${reference}`;
-				else label.title = "In Lieferschein und Rechnung steht keine „Ihre Referenz“.";
-			} catch (error) {
-				console.error("[HerkulesExporter]", field(form, "document_no"), error);
-				label.textContent = "Referenz nicht geladen";
-				label.title = "Lieferschein oder Rechnung konnten nicht geladen werden. Seite neu laden.";
-				label.classList.add("is-missing");
-			}
-		});
-		return label;
-	}
 	function attachExport() {
-		const forms = [...document.querySelectorAll("form[action*=\"webshop_document_history\"]")].filter((form) => field(form, "document_type") === "order" && !form.dataset.herkulesExport && form.querySelector("button[name=\"view_document_card\"]"));
 		attachPanel(DISCOUNT_FACTOR);
-		for (const form of forms) {
+		for (const form of document.querySelectorAll("form[action*=\"webshop_document_history\"]")) {
+			const details = form.querySelector("button[name=\"view_document_card\"]");
+			if (field(form, "document_type") !== "order" || form.dataset.herkulesExport || !details) continue;
 			form.dataset.herkulesExport = "1";
 			const status = makeStatus();
-			form.querySelector("button[name=\"view_document_card\"]").after(makeButton(form, status), makeReference(form), status);
+			details.after(makeButton(form, status), status);
 		}
-		for (let i = 0; i < Math.min(forms.length, REFERENCE_REQUESTS); i += 1) runReferenceQueue();
 	}
 	if (/action=webshop_document_history/.test(globalThis.location.search)) {
 		attachExport();
