@@ -3,11 +3,10 @@
 // the answer is the whole page with the document as a modal. The flow repeats that POST with
 // fetch, parses the modal and builds the CSV in the browser.
 
-import { factorBadge, getFactor, type FactorSetting } from '@lib/settings'
+import { readFactor, type FactorSetting } from '@lib/settings'
 import { parseOrderDate, parsePositions, parseReferences } from './parse.js'
-import { downloadCsv, toArticleQuantityRows, toCsv, toJtlRows } from './rows.js'
-
-export type ExportFormat = 'jtl' | 'artikel-menge'
+import { downloadCsv, toCsv, toJtlRows } from './rows.js'
+import { attachPanel, CSV_BUTTON, focusFactor, REFERENCE, setButtonState } from './ui.js'
 
 /** Discount factor per the supplier's terms: a local setting, never a value in this public code. */
 export const DISCOUNT_FACTOR: FactorSetting = {
@@ -38,6 +37,15 @@ function relatedForms(orderForm: HTMLFormElement): HTMLFormElement[] {
     return [...byType('shipment'), ...byType('invoice')]
 }
 
+/** Our order number as typed in the basket, for the overview: the first hit, as few requests as possible. */
+async function fetchFirstReference(orderForm: HTMLFormElement): Promise<string | undefined> {
+    for (const form of relatedForms(orderForm)) {
+        const [reference] = parseReferences(await fetchDocument(form)).values()
+        if (reference) return reference
+    }
+    return undefined
+}
+
 async function fetchReferences(orderForm: HTMLFormElement): Promise<Map<string, string>> {
     const references = new Map<string, string>()
     for (const form of relatedForms(orderForm)) {
@@ -48,63 +56,84 @@ async function fetchReferences(orderForm: HTMLFormElement): Promise<Map<string, 
     return references
 }
 
-export async function exportOrder(form: HTMLFormElement, button: HTMLButtonElement, format: ExportFormat): Promise<void> {
+export async function exportOrder(form: HTMLFormElement, button: HTMLButtonElement): Promise<void> {
     const orderNumber = field(form, 'document_no') ?? ''
-    const label = (button.textContent ?? '').replace(/^[✓✗] /, '')
-    button.disabled = true
+    const discountFactor = readFactor(DISCOUNT_FACTOR)
+    if (discountFactor === null) {
+        setButtonState(button, 'error', 'Skonto-Faktor fehlt: bitte rechts im Feld eintragen.')
+        focusFactor()
+        return
+    }
+    setButtonState(button, 'loading')
     try {
-        // Asked before loading so the prompt is not interrupted by the network round trips.
-        const discountFactor = format === 'jtl' ? getFactor(DISCOUNT_FACTOR) : 1
-        if (discountFactor === null) throw new Error('Export abgebrochen: kein Skonto-Faktor hinterlegt')
-        button.textContent = 'Lädt…'
         const doc = await fetchDocument(form)
         const positions = parsePositions(doc)
         if (positions.length === 0) throw new Error('keine Positionen gefunden')
-        const rows = format === 'jtl'
-            ? toJtlRows(positions, orderNumber, parseOrderDate(doc), await fetchReferences(form), discountFactor)
-            : toArticleQuantityRows(positions)
-        downloadCsv(toCsv(rows), `herkules-${orderNumber}${format === 'jtl' ? '' : '-artikel-menge'}.csv`)
-        button.textContent = `✓ ${label}`
+        const rows = toJtlRows(positions, orderNumber, parseOrderDate(doc), await fetchReferences(form), discountFactor)
+        downloadCsv(toCsv(rows), `herkules-${orderNumber}.csv`)
+        const missing = rows.filter((row) => !row['Interne Bestellnummer']).length
+        if (missing > 0) setButtonState(button, 'warning', `${missing} von ${rows.length} Positionen ohne Referenz: Der Import in JTL findet sie nicht.`)
+        else setButtonState(button, 'success')
     } catch (error) {
         console.error('[HerkulesExporter]', orderNumber, error)
-        button.textContent = `✗ ${label}`
-        button.title = error instanceof Error ? error.message : String(error)
-    } finally {
-        button.disabled = false
+        setButtonState(button, 'error', error instanceof Error ? error.message : String(error))
     }
 }
 
-/** The portal's link-button look, spaced from its left neighbour. */
-function styled<T extends HTMLElement>(element: T, className: string): T {
-    element.className = `buttonLink ${className}`
-    element.style.marginLeft = '12px'
-    return element
-}
-
-function makeButton(form: HTMLFormElement, text: string, title: string, format: ExportFormat): HTMLButtonElement {
-    const button = styled(document.createElement('button'), 'herkules-export-btn')
+function makeButton(form: HTMLFormElement): HTMLButtonElement {
+    const button = document.createElement('button')
     button.type = 'button'
-    button.textContent = text
-    button.title = title
+    button.className = `buttonLink ${CSV_BUTTON}`
+    button.title = 'CSV für den JTL-Import (gleiches Format wie die Husqvarna-Exporter)'
     button.addEventListener('click', (event) => {
         event.preventDefault()
         event.stopPropagation()
-        void exportOrder(form, button, format)
+        void exportOrder(form, button)
     })
+    setButtonState(button, 'idle')
     return button
 }
 
-/** Adds the two export buttons after "Details" of every order row, once per form, and beside the
- *  CSV button the discount factor it applies, changeable with one click. */
-export function attachButtons(): void {
-    for (const form of document.querySelectorAll<HTMLFormElement>('form[action*="webshop_document_history"]')) {
-        const details = form.querySelector('button[name="view_document_card"]')
-        if (field(form, 'document_type') !== 'order' || form.dataset.herkulesExport || !details) continue
+const REFERENCE_REQUESTS = 2
+const referenceQueue: (() => Promise<void>)[] = []
+let referenceWorkers = 0
+
+/** Works through the rows of a page with few requests at a time: the portal is a shop, not an API. */
+async function runReferenceQueue(): Promise<void> {
+    if (referenceWorkers >= REFERENCE_REQUESTS) return
+    referenceWorkers += 1
+    for (let job = referenceQueue.shift(); job; job = referenceQueue.shift()) await job()
+    referenceWorkers -= 1
+}
+
+function makeReference(form: HTMLFormElement): HTMLElement {
+    const label = document.createElement('span')
+    label.className = REFERENCE
+    label.textContent = 'Referenz …'
+    referenceQueue.push(async () => {
+        try {
+            const reference = await fetchFirstReference(form)
+            label.textContent = reference ? (/^D-BE\d+/.exec(reference)?.[0] ?? reference) : 'Referenz fehlt'
+            label.classList.toggle('is-missing', !reference)
+            label.title = reference ? `Ihre Referenz: ${reference}` : 'Noch kein Lieferschein oder keine Rechnung mit „Ihre Referenz“.'
+        } catch (error) {
+            console.error('[HerkulesExporter]', field(form, 'document_no'), error)
+            label.textContent = 'Referenz ?'
+            label.classList.add('is-missing')
+        }
+    })
+    return label
+}
+
+/** Adds the panel once, and to every order row, once per form, the CSV button and our reference after "Details". */
+export function attachExport(): void {
+    const forms = [...document.querySelectorAll<HTMLFormElement>('form[action*="webshop_document_history"]')].filter(
+        (form) => field(form, 'document_type') === 'order' && !form.dataset.herkulesExport && form.querySelector('button[name="view_document_card"]'),
+    )
+    attachPanel(DISCOUNT_FACTOR)
+    for (const form of forms) {
         form.dataset.herkulesExport = '1'
-        details.after(
-            makeButton(form, 'CSV', 'Export CSV für JTL (gleiches Format wie Husqvarna-Exporter)', 'jtl'),
-            styled(factorBadge(DISCOUNT_FACTOR), 'herkules-factor-btn'),
-            makeButton(form, 'Artikel;Menge', 'Export Artikel;Menge (Reimport)', 'artikel-menge'),
-        )
+        form.querySelector('button[name="view_document_card"]')!.after(makeButton(form), makeReference(form))
     }
+    for (let i = 0; i < Math.min(forms.length, REFERENCE_REQUESTS); i += 1) void runReferenceQueue()
 }

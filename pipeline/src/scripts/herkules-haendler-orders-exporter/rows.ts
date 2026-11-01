@@ -1,4 +1,4 @@
-// CSV rows of the two export formats and the CSV helpers.
+// CSV rows of the JTL export and the CSV helpers.
 
 import type { Position } from './parse.js'
 
@@ -11,9 +11,16 @@ function group(text: string, regex: RegExp): string {
     return regex.exec(text)?.[1] ?? ''
 }
 
+/** Our order number from a reference, as the reimported order is named; '' without one. */
+function reimportNumber(reference: string): string {
+    const orderNumber = group(reference, /^(D-BE\d+)/)
+    return orderNumber && `${orderNumber}-I`
+}
+
 /**
  * Same columns and order as the Husqvarna portal orders exporter (JTL purchase-order import).
  * The reference follows the same conventions as there: "D-BE<nr> [VPE=<n>] [<our article no>]".
+ * It is typed without a suffix; a reimported order is named D-BE<nr>-I in JTL, so the suffix comes here.
  */
 export function toJtlRows(
     positions: Position[],
@@ -30,7 +37,7 @@ export function toJtlRows(
         const price = Number.isFinite(p.unitPrice) && quantity > 0 ? (p.unitPrice * p.quantity * discountFactor) / quantity : Number.NaN
         return {
             HAN: p.articleNumber,
-            'Interne Bestellnummer': group(reference, /^(D-BE\S*)/).slice(0, 14),
+            'Interne Bestellnummer': reimportNumber(reference),
             Artikelnummer: group(reference, /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/),
             Lieferantenbezeichnung: p.name,
             menge: Number.isFinite(quantity) ? quantity : '',
@@ -40,11 +47,6 @@ export function toJtlRows(
             Fremdbelegnummer: orderNumber,
         }
     })
-}
-
-/** Re-import format for Herkules orders: manufacturer number;quantity. */
-export function toArticleQuantityRows(positions: Position[]): CsvRow[] {
-    return positions.map((p) => ({ Artikel: p.articleNumber, Menge: Number.isFinite(p.quantity) ? p.quantity : '' }))
 }
 
 export function csvField(value: string | number | undefined): string {

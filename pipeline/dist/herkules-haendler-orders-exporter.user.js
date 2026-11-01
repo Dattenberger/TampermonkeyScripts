@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         HerkulesHaendlerOrdersExporter v1
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      0.1.1
+// @version      0.1.2
 // @author       Robotico
-// @description  Exportiert Bestellungen aus der Herkules-Händler-Dokumenthistorie als CSV im JTL-Format der Husqvarna-Exporter (und optional Artikel;Menge).
+// @description  Exportiert Bestellungen aus der Herkules-Händler-Dokumenthistorie als CSV im JTL-Format der Husqvarna-Exporter.
 // @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/herkules-haendler-orders-exporter.user.js
 // @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/herkules-haendler-orders-exporter.user.js
 // @match        https://www.herkules-haendler.de/garten/de/account/*
+// @grant        GM_addStyle
 // @grant        GM_addValueChangeListener
 // @grant        GM_getValue
-// @grant        GM_registerMenuCommand
 // @grant        GM_setValue
 // ==/UserScript==
 
@@ -29,45 +29,30 @@
 		const shown = Number.isFinite(value) ? Number(formatFactor(value).replace(",", ".")) : NaN;
 		return value > 0 && value <= 1 && shown > 0 ? value : null;
 	}
-	function askFactor(setting) {
-		const current = parseFactor(GM_getValue(setting.key));
-		for (;;) {
-			const input = globalThis.prompt(`${setting.label}\nWird nur lokal in Tampermonkey gespeichert.`, current === null ? "" : formatFactor(current));
-			if (input === null) return null;
-			const value = parseFactor(input);
-			if (value !== null) {
-				GM_setValue(setting.key, value);
-				return value;
-			}
-			globalThis.alert("Bitte eine Zahl größer 0 und höchstens 1 eingeben.");
-		}
+	function readFactor(setting) {
+		return parseFactor(GM_getValue(setting.key));
 	}
-	function getFactor(setting) {
-		return parseFactor(GM_getValue(setting.key)) ?? askFactor(setting);
-	}
-	function registerFactorMenu(setting, caption) {
-		GM_registerMenuCommand(caption, () => {
-			askFactor(setting);
+	function factorInput(setting) {
+		const input = document.createElement("input");
+		input.type = "text";
+		input.inputMode = "decimal";
+		input.autocomplete = "off";
+		const show = () => {
+			const value = readFactor(setting);
+			input.value = value === null ? "" : formatFactor(value);
+			input.setAttribute("aria-invalid", String(value === null));
+		};
+		show();
+		input.addEventListener("input", () => {
+			const value = parseFactor(input.value);
+			if (value !== null) GM_setValue(setting.key, value);
+			input.setAttribute("aria-invalid", String(value === null));
 		});
-	}
-	function badgeText(setting) {
-		const value = parseFactor(GM_getValue(setting.key));
-		return value === null ? "Faktor fehlt · eingeben" : `Faktor ${formatFactor(value)} · ändern`;
-	}
-	function factorBadge(setting) {
-		const badge = document.createElement("button");
-		badge.type = "button";
-		badge.title = `${setting.label}\nWird nur lokal in Tampermonkey gespeichert.`;
-		badge.textContent = badgeText(setting);
-		badge.addEventListener("click", (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			askFactor(setting);
-		});
+		input.addEventListener("blur", show);
 		GM_addValueChangeListener(setting.key, () => {
-			badge.textContent = badgeText(setting);
+			if (document.activeElement !== input) show();
 		});
-		return badge;
+		return input;
 	}
 	var ROWS = ".modal .itemtable_list .itemtable_row";
 	function parseNumber(text) {
@@ -115,6 +100,10 @@
 	function group(text, regex) {
 		return regex.exec(text)?.[1] ?? "";
 	}
+	function reimportNumber(reference) {
+		const orderNumber = group(reference, /^(D-BE\d+)/);
+		return orderNumber && `${orderNumber}-I`;
+	}
 	function toJtlRows(positions, orderNumber, deliveryDate, references, discountFactor) {
 		return positions.map((p) => {
 			const reference = references.get(p.articleNumber) ?? "";
@@ -124,7 +113,7 @@
 			const price = Number.isFinite(p.unitPrice) && quantity > 0 ? p.unitPrice * p.quantity * discountFactor / quantity : NaN;
 			return {
 				HAN: p.articleNumber,
-				"Interne Bestellnummer": group(reference, /^(D-BE\S*)/).slice(0, 14),
+				"Interne Bestellnummer": reimportNumber(reference),
 				Artikelnummer: group(reference, /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/),
 				Lieferantenbezeichnung: p.name,
 				menge: Number.isFinite(quantity) ? quantity : "",
@@ -134,12 +123,6 @@
 				Fremdbelegnummer: orderNumber
 			};
 		});
-	}
-	function toArticleQuantityRows(positions) {
-		return positions.map((p) => ({
-			Artikel: p.articleNumber,
-			Menge: Number.isFinite(p.quantity) ? p.quantity : ""
-		}));
 	}
 	function csvField(value) {
 		const text = value == null ? "" : String(value);
@@ -159,6 +142,79 @@
 		link.click();
 		link.remove();
 		setTimeout(() => URL.revokeObjectURL(url), 1e4);
+	}
+	var CSV_BUTTON = "herkules-csv-btn";
+	var REFERENCE = "herkules-reference";
+	var PANEL_ID = "herkules-export-panel";
+	var CSS = `
+    .${CSV_BUTTON} {
+        display: inline-flex; align-items: center; gap: .4rem;
+        margin-left: 12px; padding: 6px 14px;
+        border: 1px solid #3d3d3c; border-radius: 8px;
+        background: #fff; color: #3d3d3c;
+        font: 600 12px/16px Arial, sans-serif; letter-spacing: .03em; text-transform: uppercase;
+        cursor: pointer; transition: background-color .15s ease, color .15s ease;
+    }
+    .${CSV_BUTTON}:hover { background: #3d3d3c; color: #fff; }
+    .${CSV_BUTTON}:focus-visible, #${PANEL_ID} input:focus-visible { outline: 2px solid #3d3d3c; outline-offset: 2px; }
+    .${CSV_BUTTON}.is-loading { background: #6f6f6f; border-color: #6f6f6f; color: #fff; cursor: progress; }
+    .${CSV_BUTTON}.is-success { background: #28a745; border-color: #28a745; color: #fff; }
+    .${CSV_BUTTON}.is-warning { background: #ffc107; border-color: #ffc107; color: #212529; }
+    .${CSV_BUTTON}.is-error { background: #dc3545; border-color: #dc3545; color: #fff; }
+    .${REFERENCE} { margin-left: 10px; color: #3d3d3c; font: 12px/16px Arial, sans-serif; white-space: nowrap; }
+    .${REFERENCE}.is-missing { color: #b02a37; }
+    #${PANEL_ID} {
+        position: fixed; top: 140px; right: 16px; z-index: 1000; width: 190px; padding: 14px 16px;
+        background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, .12);
+        color: #3d3d3c; font: 13px/18px Arial, sans-serif;
+    }
+    #${PANEL_ID} .herkules-panel-title { margin: 0 0 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; font-size: 12px; }
+    #${PANEL_ID} label { display: block; font-weight: 600; }
+    #${PANEL_ID} input {
+        box-sizing: border-box; width: 100%; margin: 4px 0 6px; padding: 6px 8px;
+        border: 1px solid #3d3d3c; border-radius: 6px; font: 14px/18px Arial, sans-serif;
+    }
+    #${PANEL_ID} input[aria-invalid='true'] { border-color: #dc3545; background: #fff5f5; }
+    #${PANEL_ID} small { display: block; color: #6f6f6f; font-size: 11px; line-height: 14px; }
+`;
+	var BUTTON_TEXT = {
+		idle: "CSV",
+		loading: "Lädt …",
+		success: "✓ CSV",
+		warning: "⚠ CSV",
+		error: "✗ CSV"
+	};
+	function setButtonState(button, state, detail) {
+		button.textContent = BUTTON_TEXT[state];
+		button.disabled = state === "loading";
+		for (const name of [
+			"is-loading",
+			"is-success",
+			"is-warning",
+			"is-error"
+		]) button.classList.remove(name);
+		if (state !== "idle") button.classList.add(`is-${state}`);
+		if (detail) button.title = detail;
+	}
+	function attachPanel(setting) {
+		if (document.querySelector(`#${PANEL_ID}`)) return;
+		GM_addStyle(CSS);
+		const panel = document.createElement("aside");
+		panel.id = PANEL_ID;
+		const title = document.createElement("p");
+		title.className = "herkules-panel-title";
+		title.textContent = "CSV-Export";
+		const label = document.createElement("label");
+		label.textContent = "Skonto-Faktor";
+		label.title = setting.label;
+		label.append(factorInput(setting));
+		const hint = document.createElement("small");
+		hint.textContent = "Nur lokal in diesem Browser gespeichert.";
+		panel.append(title, label, hint);
+		document.body.append(panel);
+	}
+	function focusFactor() {
+		document.querySelector(`#${PANEL_ID} input`)?.focus();
 	}
 	var DISCOUNT_FACTOR = {
 		key: "herkulesDiscountFactor",
@@ -186,61 +242,92 @@
 		const byType = (type) => forms.filter((f) => field(f, "document_no") && field(f, "document_type") === type);
 		return [...byType("shipment"), ...byType("invoice")];
 	}
+	async function fetchFirstReference(orderForm) {
+		for (const form of relatedForms(orderForm)) {
+			const [reference] = parseReferences(await fetchDocument(form)).values();
+			if (reference) return reference;
+		}
+	}
 	async function fetchReferences(orderForm) {
 		const references = new Map();
 		for (const form of relatedForms(orderForm)) for (const [article, reference] of parseReferences(await fetchDocument(form))) if (!references.has(article)) references.set(article, reference);
 		return references;
 	}
-	async function exportOrder(form, button, format) {
+	async function exportOrder(form, button) {
 		const orderNumber = field(form, "document_no") ?? "";
-		const label = (button.textContent ?? "").replace(/^[✓✗] /, "");
-		button.disabled = true;
+		const discountFactor = readFactor(DISCOUNT_FACTOR);
+		if (discountFactor === null) {
+			setButtonState(button, "error", "Skonto-Faktor fehlt: bitte rechts im Feld eintragen.");
+			focusFactor();
+			return;
+		}
+		setButtonState(button, "loading");
 		try {
-			const discountFactor = format === "jtl" ? getFactor(DISCOUNT_FACTOR) : 1;
-			if (discountFactor === null) throw new Error("Export abgebrochen: kein Skonto-Faktor hinterlegt");
-			button.textContent = "Lädt…";
 			const doc = await fetchDocument(form);
 			const positions = parsePositions(doc);
 			if (positions.length === 0) throw new Error("keine Positionen gefunden");
-			downloadCsv(toCsv(format === "jtl" ? toJtlRows(positions, orderNumber, parseOrderDate(doc), await fetchReferences(form), discountFactor) : toArticleQuantityRows(positions)), `herkules-${orderNumber}${format === "jtl" ? "" : "-artikel-menge"}.csv`);
-			button.textContent = `✓ ${label}`;
+			const rows = toJtlRows(positions, orderNumber, parseOrderDate(doc), await fetchReferences(form), discountFactor);
+			downloadCsv(toCsv(rows), `herkules-${orderNumber}.csv`);
+			const missing = rows.filter((row) => !row["Interne Bestellnummer"]).length;
+			if (missing > 0) setButtonState(button, "warning", `${missing} von ${rows.length} Positionen ohne Referenz: Der Import in JTL findet sie nicht.`);
+			else setButtonState(button, "success");
 		} catch (error) {
 			console.error("[HerkulesExporter]", orderNumber, error);
-			button.textContent = `✗ ${label}`;
-			button.title = error instanceof Error ? error.message : String(error);
-		} finally {
-			button.disabled = false;
+			setButtonState(button, "error", error instanceof Error ? error.message : String(error));
 		}
 	}
-	function styled(element, className) {
-		element.className = `buttonLink ${className}`;
-		element.style.marginLeft = "12px";
-		return element;
-	}
-	function makeButton(form, text, title, format) {
-		const button = styled(document.createElement("button"), "herkules-export-btn");
+	function makeButton(form) {
+		const button = document.createElement("button");
 		button.type = "button";
-		button.textContent = text;
-		button.title = title;
+		button.className = `buttonLink ${CSV_BUTTON}`;
+		button.title = "CSV für den JTL-Import (gleiches Format wie die Husqvarna-Exporter)";
 		button.addEventListener("click", (event) => {
 			event.preventDefault();
 			event.stopPropagation();
-			exportOrder(form, button, format);
+			exportOrder(form, button);
 		});
+		setButtonState(button, "idle");
 		return button;
 	}
-	function attachButtons() {
-		for (const form of document.querySelectorAll("form[action*=\"webshop_document_history\"]")) {
-			const details = form.querySelector("button[name=\"view_document_card\"]");
-			if (field(form, "document_type") !== "order" || form.dataset.herkulesExport || !details) continue;
-			form.dataset.herkulesExport = "1";
-			details.after(makeButton(form, "CSV", "Export CSV für JTL (gleiches Format wie Husqvarna-Exporter)", "jtl"), styled(factorBadge(DISCOUNT_FACTOR), "herkules-factor-btn"), makeButton(form, "Artikel;Menge", "Export Artikel;Menge (Reimport)", "artikel-menge"));
-		}
+	var REFERENCE_REQUESTS = 2;
+	var referenceQueue = [];
+	var referenceWorkers = 0;
+	async function runReferenceQueue() {
+		if (referenceWorkers >= REFERENCE_REQUESTS) return;
+		referenceWorkers += 1;
+		for (let job = referenceQueue.shift(); job; job = referenceQueue.shift()) await job();
+		referenceWorkers -= 1;
 	}
-	registerFactorMenu(DISCOUNT_FACTOR, "Skonto-Faktor ändern");
+	function makeReference(form) {
+		const label = document.createElement("span");
+		label.className = REFERENCE;
+		label.textContent = "Referenz …";
+		referenceQueue.push(async () => {
+			try {
+				const reference = await fetchFirstReference(form);
+				label.textContent = reference ? /^D-BE\d+/.exec(reference)?.[0] ?? reference : "Referenz fehlt";
+				label.classList.toggle("is-missing", !reference);
+				label.title = reference ? `Ihre Referenz: ${reference}` : "Noch kein Lieferschein oder keine Rechnung mit „Ihre Referenz“.";
+			} catch (error) {
+				console.error("[HerkulesExporter]", field(form, "document_no"), error);
+				label.textContent = "Referenz ?";
+				label.classList.add("is-missing");
+			}
+		});
+		return label;
+	}
+	function attachExport() {
+		const forms = [...document.querySelectorAll("form[action*=\"webshop_document_history\"]")].filter((form) => field(form, "document_type") === "order" && !form.dataset.herkulesExport && form.querySelector("button[name=\"view_document_card\"]"));
+		attachPanel(DISCOUNT_FACTOR);
+		for (const form of forms) {
+			form.dataset.herkulesExport = "1";
+			form.querySelector("button[name=\"view_document_card\"]").after(makeButton(form), makeReference(form));
+		}
+		for (let i = 0; i < Math.min(forms.length, REFERENCE_REQUESTS); i += 1) runReferenceQueue();
+	}
 	if (/action=webshop_document_history/.test(globalThis.location.search)) {
-		attachButtons();
-		new MutationObserver(() => attachButtons()).observe(document.body, {
+		attachExport();
+		new MutationObserver(() => attachExport()).observe(document.body, {
 			childList: true,
 			subtree: true
 		});

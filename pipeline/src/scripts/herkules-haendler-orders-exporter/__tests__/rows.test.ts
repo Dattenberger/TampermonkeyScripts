@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { csvField, toArticleQuantityRows, toCsv, toJtlRows } from '../rows.js'
+import { csvField, toCsv, toJtlRows } from '../rows.js'
 
 const positions = [
     { articleNumber: 'ART-0001', name: 'Eins', quantity: 2, unitPrice: 12.34 },
@@ -8,11 +8,11 @@ const positions = [
 
 describe('herkules export rows', () => {
     it('builds the JTL rows with VPE, our article number and the factor applied', () => {
-        const references = new Map([['ART-0001', 'D-BE0000001234567 VPE=3 ART-X1']])
+        const references = new Map([['ART-0001', 'D-BE00000012 VPE=3 ART-X1']])
         const [first, second] = toJtlRows(positions, 'AB-0001', '01.02.2030', references, 0.123)
         expect(first).toEqual({
             HAN: 'ART-0001',
-            'Interne Bestellnummer': 'D-BE0000001234',
+            'Interne Bestellnummer': 'D-BE00000012-I',
             Artikelnummer: 'ART-X1',
             Lieferantenbezeichnung: 'Eins',
             menge: 6,
@@ -30,11 +30,14 @@ describe('herkules export rows', () => {
         expect(row).toMatchObject({ menge: 2, Artikelnummer: 'ART-X1', 'EK netto': '12,3400' })
     })
 
-    it('builds the article;quantity rows for the re-import', () => {
-        expect(toArticleQuantityRows(positions)).toEqual([
-            { Artikel: 'ART-0001', Menge: 2 },
-            { Artikel: 'ART-0002', Menge: '' },
-        ])
+    it('appends -I once to the number typed in the basket, whatever follows it', () => {
+        const number = (reference: string) =>
+            toJtlRows(positions.slice(0, 1), 'AB-0001', '', new Map([['ART-0001', reference]]), 1)[0]!['Interne Bestellnummer']
+        expect(number('D-BE00000012')).toBe('D-BE00000012-I')
+        expect(number('D-BE00000012-I')).toBe('D-BE00000012-I')
+        expect(number('D-BE00000012-I-2')).toBe('D-BE00000012-I')
+        expect(number('D-BE00000012 ART-X1')).toBe('D-BE00000012-I')
+        expect(number('falsch')).toBe('')
     })
 
     it('quotes CSV fields only when needed and joins with semicolons and CRLF', () => {
