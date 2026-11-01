@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         HusqWebOrderOptimizer
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      3.1.0
+// @version      3.1.1
 // @description  Dieses Script fügt im Warenkorb der Weborder V1 Einzelpreise hinzu. Skonto wird automatisch mit eingerechnet. Dafür wird ein Button im Warenkorb hinzugefügt.
 // @author       Lukas Dattenberger
 // @match        http://weborder.husqvarna.com/*basket/basket_view_header.jsp
-// @grant        none
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
 // @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/weborder.js
 // @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/weborder.js
 // @require      https://code.jquery.com/jquery-latest.min.js
@@ -13,6 +15,47 @@
 
 
 (function () {
+
+    // --- local discount factor ---
+    // A purchase condition never goes into this public repository: the user enters it once and
+    // Tampermonkey keeps it in this browser. The menu entry changes it.
+    const FACTOR_KEY = 'husqvarnaDiscountFactor';
+
+    function parseFactor(input) {
+        const text = String(input ?? '').trim();
+        const value = /^\d*[.,]?\d+$/.test(text) ? Number(text.replace(',', '.')) : NaN;
+        return value > 0 && value <= 1 ? value : null;
+    }
+
+    function readFactor() {
+        return parseFactor(GM_getValue(FACTOR_KEY));
+    }
+
+    function askFactor() {
+        for (;;) {
+            const shown = readFactor();
+            const input = globalThis.prompt(
+                'Skonto-Faktor für Husqvarna (Faktor auf den Netto-Preis).\nWird nur lokal in Tampermonkey gespeichert.',
+                shown === null ? '' : String(shown).replace('.', ','),
+            );
+            if (input === null) return null;
+            const value = parseFactor(input);
+            if (value !== null) {
+                GM_setValue(FACTOR_KEY, value);
+                return value;
+            }
+            globalThis.alert('Bitte eine Zahl größer 0 und höchstens 1 eingeben.');
+        }
+    }
+
+    GM_registerMenuCommand('Skonto-Faktor ändern', askFactor);
+    // --- end local discount factor ---
+
+
+    function skontoText(value, digits = 4) {
+        const factor = readFactor();
+        return factor === null ? '–' : (value * factor).toFixed(digits).toLocaleString("de-DE");
+    }
 
     function artikelpreise() {
         function td(menge, element) {
@@ -22,7 +65,7 @@
             const wertDouble = Number.parseFloat(text.replace(",", ""));
             const wertText = wertDouble.toFixed(4).toLocaleString("de-DE");
             const stückText = (wertDouble / menge).toFixed(4).toLocaleString("de-DE");
-            const stückSkontoText = (wertDouble / menge * 0.97).toFixed(4).toLocaleString("de-DE");
+            const stückSkontoText = skontoText(wertDouble / menge);
 
             element.html(`<span style="display: block; margin-bottom: 5px">${wertText}</span><span style="display: block">${stückText}</span><span style="display: block">${stückSkontoText}</span>`)
         }
@@ -69,10 +112,11 @@
         let ekGesamtElement = jQuery("body > table > tbody > tr > td:nth-child(3) > table > tbody > tr:nth-child(4) > td:nth-child(2)", top.frames["main"].document.getElementsByTagName("frame").bottom.contentDocument)
         let ekGesamtOriginalerEK = ekGesamtElement.find("b");
         let ekGesamt = Number.parseFloat(ekGesamtOriginalerEK.text().replace(",", ""));
-        ekGesamtElement.html(`<b>${ekGesamtOriginalerEK.text()}</b><p style="font-weight: bold; margin-top: 5px;">${(ekGesamt * 0.97).toFixed(2).toLocaleString("de-DE")}</p>`)
+        ekGesamtElement.html(`<b>${ekGesamtOriginalerEK.text()}</b><p style="font-weight: bold; margin-top: 5px;">${skontoText(ekGesamt, 2).toLocaleString("de-DE")}</p>`)
     }
 
     function start(){
+        if (readFactor() === null) askFactor();
         try{
             artikelpreise();
             observer(artikelpreise);
