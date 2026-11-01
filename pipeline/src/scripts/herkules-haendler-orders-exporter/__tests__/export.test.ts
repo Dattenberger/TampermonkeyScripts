@@ -35,7 +35,8 @@ describe('herkules export', () => {
     it('applies the stored factor and takes the references from shipment then invoice', async () => {
         GM_setValue(DISCOUNT_FACTOR.key, 0.123)
         const button = document.createElement('button')
-        await exportOrder(orderForm(), button)
+        const status = document.createElement('span')
+        await exportOrder(orderForm(), button, status)
         const sent = fetchMock.mock.calls.map(([, init]) => init.body as FormData)
         expect(sent.map((body) => body.get('document_no'))).toEqual(['AB-0001', 'LS-0001', 'RE-0001'])
         expect(sent[0]!.get('view_document_card')).toBe('1')
@@ -46,7 +47,7 @@ describe('herkules export', () => {
         expect(text.split('\r\n')[1]).toBe('ART-0001;D-BE0000001-I;ART-X1;Testartikel Eins;6;0,5059;01.02.2030;N;AB-0001')
         // ART-0002 has no reference in the fixtures: the file is written, the button says so.
         expect(button.textContent).toBe('⚠ CSV')
-        expect(button.title).toContain('1 von 2 Positionen ohne D-BE-Referenz')
+        expect(status.textContent).toContain('1 von 2 Positionen ohne D-BE-Referenz')
     })
 
     it('without a stored factor loads nothing, says why and takes the user to the field', async () => {
@@ -56,12 +57,19 @@ describe('herkules export', () => {
         await vi.waitFor(() => expect(document.querySelector('.herkules-reference')?.textContent).toBe('D-BE0000001 VPE=3 ART-X1'))
         fetchMock.mockClear()
         const button = document.querySelector<HTMLButtonElement>('.herkules-csv-btn')!
-        await exportOrder(form, button)
+        const status = document.querySelector<HTMLElement>('.herkules-status')!
+        await exportOrder(form, button, status)
         expect(fetchMock).not.toHaveBeenCalled()
         expect(createObjectURL).not.toHaveBeenCalled()
         expect(button.textContent).toBe('✗ CSV')
-        expect(button.title).toContain('Skonto-Faktor fehlt')
-        expect(document.activeElement).toBe(document.querySelector('#herkules-export-panel input'))
+        expect(status.textContent).toContain('Skonto-Faktor fehlt')
+        const input = document.querySelector('#herkules-export-panel input')
+        expect(document.activeElement).toBe(input)
+        expect(input?.getAttribute('aria-invalid')).toBe('true')
+        GM_setValue(DISCOUNT_FACTOR.key, 0.123)
+        await exportOrder(form, button, status)
+        expect(status.textContent).toContain('ohne D-BE-Referenz')
+        expect(button.title).not.toContain('Skonto-Faktor fehlt')
     })
 
     it('adds one CSV button and one reference per order, and one panel, however often it runs', async () => {
@@ -79,9 +87,10 @@ describe('herkules export', () => {
         pages['LS-0001'] = shipment.replace('D-BE0000001 VPE=3 ART-X1', 'Freitext')
         document.body.innerHTML = `<h1>Bestellungen</h1>${HISTORY_PAGE}`
         attachExport()
-        const label = () => document.querySelector('.herkules-reference')
+        const label = () => document.querySelector<HTMLElement>('.herkules-reference')
         await vi.waitFor(() => expect(label()?.textContent).toBe('Freitext'))
-        expect(label()?.classList.contains('is-missing')).toBe(true)
+        expect(label()?.classList.contains('is-unusable')).toBe(true)
+        expect(label()?.title).toContain('Keine D-BE-Nummer')
         expect(document.querySelector('h1')?.previousElementSibling?.id).toBe('herkules-export-panel')
         pages['LS-0001'] = shipment
     })

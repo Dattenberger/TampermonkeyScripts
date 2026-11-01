@@ -12,7 +12,7 @@ function group(text: string, regex: RegExp): string {
 }
 
 /** Our order number from a reference, as the reimported order is named; '' without one. */
-function reimportNumber(reference: string): string {
+export function reimportNumber(reference: string): string {
     const orderNumber = group(reference, /^(D-BE\d+)/)
     return orderNumber && `${orderNumber}-I`
 }

@@ -5,8 +5,8 @@
 
 import { readFactor, type FactorSetting } from '@lib/settings'
 import { parseOrderDate, parsePositions, parseReferences } from './parse.js'
-import { downloadCsv, toCsv, toJtlRows } from './rows.js'
-import { attachPanel, CSV_BUTTON, focusFactor, REFERENCE, setButtonState } from './ui.js'
+import { downloadCsv, reimportNumber, toCsv, toJtlRows } from './rows.js'
+import { attachPanel, CSV_BUTTON, focusFactor, REFERENCE, setButtonState, STATUS } from './ui.js'
 
 /** Discount factor per the supplier's terms: a local setting, never a value in this public code. */
 export const DISCOUNT_FACTOR: FactorSetting = {
@@ -56,15 +56,15 @@ async function fetchReferences(orderForm: HTMLFormElement): Promise<Map<string, 
     return references
 }
 
-export async function exportOrder(form: HTMLFormElement, button: HTMLButtonElement): Promise<void> {
+export async function exportOrder(form: HTMLFormElement, button: HTMLButtonElement, status: HTMLElement): Promise<void> {
     const orderNumber = field(form, 'document_no') ?? ''
     const discountFactor = readFactor(DISCOUNT_FACTOR)
     if (discountFactor === null) {
-        setButtonState(button, 'error', 'Skonto-Faktor fehlt: bitte rechts im Feld eintragen.')
+        setButtonState(button, 'error', status, 'Skonto-Faktor fehlt: bitte oben rechts im Feld „Skonto-Faktor“ eintragen.')
         focusFactor()
         return
     }
-    setButtonState(button, 'loading')
+    setButtonState(button, 'loading', status)
     try {
         const doc = await fetchDocument(form)
         const positions = parsePositions(doc)
@@ -72,25 +72,32 @@ export async function exportOrder(form: HTMLFormElement, button: HTMLButtonEleme
         const rows = toJtlRows(positions, orderNumber, parseOrderDate(doc), await fetchReferences(form), discountFactor)
         downloadCsv(toCsv(rows), `herkules-${orderNumber}.csv`)
         const missing = rows.filter((row) => !row['Interne Bestellnummer']).length
-        if (missing > 0) setButtonState(button, 'warning', `${missing} von ${rows.length} Positionen ohne D-BE-Referenz: Der Import in JTL findet sie nicht.`)
-        else setButtonState(button, 'success')
+        if (missing > 0) setButtonState(button, 'warning', status, `${missing} von ${rows.length} Positionen ohne D-BE-Referenz: Der Import in JTL findet sie nicht.`)
+        else setButtonState(button, 'success', status)
     } catch (error) {
         console.error('[HerkulesExporter]', orderNumber, error)
-        setButtonState(button, 'error', error instanceof Error ? error.message : String(error))
+        setButtonState(button, 'error', status, error instanceof Error ? error.message : String(error))
     }
 }
 
-function makeButton(form: HTMLFormElement): HTMLButtonElement {
+function makeStatus(): HTMLElement {
+    const status = document.createElement('span')
+    status.className = STATUS
+    status.setAttribute('role', 'status')
+    return status
+}
+
+function makeButton(form: HTMLFormElement, status: HTMLElement): HTMLButtonElement {
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = `buttonLink ${CSV_BUTTON}`
-    button.title = 'CSV für den JTL-Import (gleiches Format wie die Husqvarna-Exporter)'
+    button.className = CSV_BUTTON
+    button.setAttribute('aria-label', `CSV für Bestellung ${field(form, 'document_no') ?? ''}`)
     button.addEventListener('click', (event) => {
         event.preventDefault()
         event.stopPropagation()
-        void exportOrder(form, button)
+        void exportOrder(form, button, status)
     })
-    setButtonState(button, 'idle')
+    setButtonState(button, 'idle', status)
     return button
 }
 
@@ -109,17 +116,21 @@ async function runReferenceQueue(): Promise<void> {
 function makeReference(form: HTMLFormElement): HTMLElement {
     const label = document.createElement('span')
     label.className = REFERENCE
-    label.textContent = 'Referenz …'
+    label.textContent = 'Referenz lädt …'
     referenceQueue.push(async () => {
         try {
             const reference = await fetchFirstReference(form)
             // Free text such as a customer's name is shown as it is, marked: the import cannot use it.
             label.textContent = reference ?? 'Referenz fehlt'
-            label.classList.toggle('is-missing', !reference?.startsWith('D-BE'))
-            label.title = reference ? `Ihre Referenz: ${reference}` : 'In Lieferschein und Rechnung steht keine „Ihre Referenz“.'
+            label.classList.toggle('is-missing', !reference)
+            const usable = Boolean(reference && reimportNumber(reference))
+            label.classList.toggle('is-unusable', Boolean(reference) && !usable)
+            if (reference) {label.title = usable ? `Ihre Referenz: ${reference}` : `Keine D-BE-Nummer: Der Import in JTL findet diese Bestellung nicht. Ihre Referenz: ${reference}`}
+            else {label.title = 'In Lieferschein und Rechnung steht keine „Ihre Referenz“.'}
         } catch (error) {
             console.error('[HerkulesExporter]', field(form, 'document_no'), error)
-            label.textContent = 'Referenz ?'
+            label.textContent = 'Referenz nicht geladen'
+            label.title = 'Lieferschein oder Rechnung konnten nicht geladen werden. Seite neu laden.'
             label.classList.add('is-missing')
         }
     })
@@ -134,7 +145,8 @@ export function attachExport(): void {
     attachPanel(DISCOUNT_FACTOR)
     for (const form of forms) {
         form.dataset.herkulesExport = '1'
-        form.querySelector('button[name="view_document_card"]')!.after(makeButton(form), makeReference(form))
+        const status = makeStatus()
+        form.querySelector('button[name="view_document_card"]')!.after(makeButton(form, status), makeReference(form), status)
     }
     for (let i = 0; i < Math.min(forms.length, REFERENCE_REQUESTS); i += 1) void runReferenceQueue()
 }

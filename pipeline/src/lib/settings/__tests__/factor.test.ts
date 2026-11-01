@@ -40,13 +40,12 @@ describe('factor setting', () => {
         expect(readFactor(setting)).toBeNull()
     })
 
-    it('shows the stored value in the form it accepts, and marks a missing one', () => {
-        expect(factorInput(setting).getAttribute('aria-invalid')).toBe('true')
+    it('shows the stored value in the form it accepts, and does not mark an untouched empty field', () => {
+        expect(factorInput(setting).getAttribute('aria-invalid')).toBeNull()
         const factor = randomFactor()
         GM_setValue(setting.key, factor)
         const input = factorInput(setting)
         expect(input.value).toBe(shown(factor))
-        expect(input.getAttribute('aria-invalid')).toBe('false')
     })
 
     it('stores a valid input at once, and an empty or invalid one removes the value and stays visible', () => {
@@ -65,18 +64,15 @@ describe('factor setting', () => {
         }
     })
 
-    it('follows a change from elsewhere unless the user is typing', () => {
+    it('follows a change from another tab, not its own', () => {
         const input = factorInput(setting)
-        document.body.append(input)
         const listener = vi.mocked(GM_addValueChangeListener).mock.calls.at(-1)![1]
         const first = randomFactor()
         GM_setValue(setting.key, first)
         listener(setting.key, undefined, first, true)
         expect(input.value).toBe(shown(first))
-        input.focus()
         input.value = 'im Tippen'
-        listener(setting.key, first, first, true)
+        listener(setting.key, first, first, false)
         expect(input.value).toBe('im Tippen')
-        input.remove()
     })
 })

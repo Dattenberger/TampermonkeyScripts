@@ -35,8 +35,9 @@ export function readFactor(setting: FactorSetting): number | null {
 /**
  * A text field for the factor. What it shows is what applies: a valid input is stored at once, and an
  * empty or invalid one removes the stored value and sets `aria-invalid`, so nothing keeps using an old
- * value the user has cleared. The field follows changes from another tab, unless it holds the focus.
- * The caller labels, places and styles it.
+ * value the user has cleared. An untouched empty field is not marked yet. The field follows changes
+ * from another tab, also while focused, since an export reads the stored value. The caller labels,
+ * places and styles it.
  */
 export function factorInput(setting: FactorSetting): HTMLInputElement {
     const input = document.createElement('input')
@@ -46,7 +47,6 @@ export function factorInput(setting: FactorSetting): HTMLInputElement {
     const show = () => {
         const value = readFactor(setting)
         input.value = value === null ? '' : formatFactor(value)
-        input.setAttribute('aria-invalid', String(value === null))
     }
     show()
     input.addEventListener('input', () => {
@@ -55,7 +55,7 @@ export function factorInput(setting: FactorSetting): HTMLInputElement {
         input.setAttribute('aria-invalid', String(value === null))
     })
     GM_addValueChangeListener(setting.key, (_key, _old, _new, remote) => {
-        if (remote && document.activeElement !== input) show()
+        if (remote) show()
     })
     return input
 }
