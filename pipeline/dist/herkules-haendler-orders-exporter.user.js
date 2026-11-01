@@ -318,10 +318,12 @@
 	}
 	async function exportOrder(form, button, status) {
 		const orderNumber = field(form, "document_no") ?? "";
-		const discountFactor = readFactor(DISCOUNT_FACTOR);
-		if (discountFactor === null) {
+		const missingFactor = () => {
 			setButtonState(button, "error", status, "Skonto-Faktor fehlt: bitte oben rechts im Feld „Skonto-Faktor“ eintragen.");
 			focusFactor();
+		};
+		if (readFactor(DISCOUNT_FACTOR) === null) {
+			missingFactor();
 			return;
 		}
 		setButtonState(button, "loading", status);
@@ -333,6 +335,11 @@
 			const orderNumberInJtl = await askOrderNumber(status, [...references.values()].map((reference) => orderNumberOf(reference)).find(Boolean) ?? "");
 			if (orderNumberInJtl === null) {
 				setButtonState(button, "idle", status);
+				return;
+			}
+			const discountFactor = readFactor(DISCOUNT_FACTOR);
+			if (discountFactor === null) {
+				missingFactor();
 				return;
 			}
 			downloadCsv(toCsv(toJtlRows(positions, orderNumber, parseOrderDate(doc), references, discountFactor, orderNumberInJtl)), `herkules-${orderNumber}.csv`);

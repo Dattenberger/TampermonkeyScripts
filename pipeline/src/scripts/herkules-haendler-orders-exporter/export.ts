@@ -49,10 +49,12 @@ async function fetchReferences(orderForm: HTMLFormElement): Promise<Map<string, 
 
 export async function exportOrder(form: HTMLFormElement, button: HTMLButtonElement, status: HTMLElement): Promise<void> {
     const orderNumber = field(form, 'document_no') ?? ''
-    const discountFactor = readFactor(DISCOUNT_FACTOR)
-    if (discountFactor === null) {
+    const missingFactor = () => {
         setButtonState(button, 'error', status, 'Skonto-Faktor fehlt: bitte oben rechts im Feld „Skonto-Faktor“ eintragen.')
         focusFactor()
+    }
+    if (readFactor(DISCOUNT_FACTOR) === null) {
+        missingFactor()
         return
     }
     setButtonState(button, 'loading', status)
@@ -66,6 +68,12 @@ export async function exportOrder(form: HTMLFormElement, button: HTMLButtonEleme
         const orderNumberInJtl = await askOrderNumber(status, suggestion)
         if (orderNumberInJtl === null) {
             setButtonState(button, 'idle', status)
+            return
+        }
+        // The field stays editable while the user types the number: what it shows now is what applies.
+        const discountFactor = readFactor(DISCOUNT_FACTOR)
+        if (discountFactor === null) {
+            missingFactor()
             return
         }
         const rows = toJtlRows(positions, orderNumber, parseOrderDate(doc), references, discountFactor, orderNumberInJtl)

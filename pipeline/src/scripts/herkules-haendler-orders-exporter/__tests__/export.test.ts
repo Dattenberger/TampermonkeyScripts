@@ -85,6 +85,26 @@ describe('herkules export', () => {
         expect(button.disabled).toBe(false)
     })
 
+    it('uses the factor shown when the user confirms, and stops if it was cleared meanwhile', async () => {
+        GM_setValue(DISCOUNT_FACTOR.key, 0.5)
+        const { button, status } = clickCsv()
+        await vi.waitFor(() => expect(field()).not.toBeNull())
+        GM_setValue(DISCOUNT_FACTOR.key, 0.123)
+        document.querySelector<HTMLButtonElement>('.herkules-order-number .is-primary')!.click()
+        await vi.waitFor(() => expect(button.textContent).toBe('✓ CSV'))
+        const { text } = await downloaded()
+        expect(text.split('\r\n')[1]).toContain(';0,5059;')
+        vi.clearAllMocks()
+        GM_setValue(DISCOUNT_FACTOR.key, 0.5)
+        button.click()
+        await vi.waitFor(() => expect(field()).not.toBeNull())
+        GM_setValue(DISCOUNT_FACTOR.key, undefined)
+        document.querySelector<HTMLButtonElement>('.herkules-order-number .is-primary')!.click()
+        await vi.waitFor(() => expect(button.textContent).toBe('✗ CSV'))
+        expect(createObjectURL).not.toHaveBeenCalled()
+        expect(status.textContent).toContain('Skonto-Faktor fehlt')
+    })
+
     it('without a stored factor loads nothing, says why in the row and takes the user to the field', async () => {
         GM_setValue(DISCOUNT_FACTOR.key, undefined)
         const { button, status } = clickCsv()
