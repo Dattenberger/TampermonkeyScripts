@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { factorBadge, getFactor, parseFactor, registerFactorMenu } from '@lib/settings'
+import { factorInput, parseFactor, readFactor } from '@lib/settings'
 
 const setting = { key: 'testFactor', label: 'Test-Faktor' }
 
@@ -7,15 +7,14 @@ const setting = { key: 'testFactor', label: 'Test-Faktor' }
 const randomFactor = () => (1 + Math.floor(Math.random() * 998)) / 1000
 const shown = (value: number) => String(value).replace('.', ',')
 
-describe('factor setting', () => {
-    const prompt = vi.fn<(message?: string, value?: string) => string | null>()
-    const alert = vi.fn()
+function type(input: HTMLInputElement, text: string): void {
+    input.value = text
+    input.dispatchEvent(new Event('input'))
+}
 
+describe('factor setting', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        prompt.mockReset()
-        vi.stubGlobal('prompt', prompt)
-        vi.stubGlobal('alert', alert)
     })
 
     it('accepts comma or dot decimals in (0, 1] and refuses everything else', () => {
@@ -24,7 +23,7 @@ describe('factor setting', () => {
         expect(parseFactor(1)).toBe(1)
         expect(parseFactor(',5')).toBe(0.5)
         expect(parseFactor('.5')).toBe(0.5)
-        // A stored number counts only if the prompt can show it: 1e-21 would read as '0'.
+        // A stored number counts only if the field can show it: 1e-21 would read as '0'.
         expect(parseFactor(0.000_000_1)).toBe(0.000_000_1)
         expect(parseFactor(1e-21)).toBeNull()
         expect(parseFactor('0,' + '0'.repeat(20) + '1')).toBeNull()
@@ -32,89 +31,48 @@ describe('factor setting', () => {
         for (const input of bad) expect(parseFactor(input)).toBeNull()
     })
 
-    it('asks on first use and stores the answer', () => {
-        prompt.mockReturnValueOnce('0,123')
-        expect(getFactor(setting)).toBe(0.123)
-        expect(prompt).toHaveBeenCalledTimes(1)
-        expect(GM_getValue('testFactor')).toBe(0.123)
+    it('reads nothing but a valid stored factor', () => {
+        expect(readFactor(setting)).toBeNull()
+        const factor = randomFactor()
+        GM_setValue(setting.key, factor)
+        expect(readFactor(setting)).toBe(factor)
+        GM_setValue(setting.key, 'abc')
+        expect(readFactor(setting)).toBeNull()
     })
 
-    it('uses a stored value without asking', () => {
-        GM_setValue('testFactor', 0.123)
-        expect(getFactor(setting)).toBe(0.123)
-        expect(prompt).not.toHaveBeenCalled()
+    it('shows the stored value in the form it accepts, and does not mark an untouched empty field', () => {
+        expect(factorInput(setting).getAttribute('aria-invalid')).toBeNull()
+        const factor = randomFactor()
+        GM_setValue(setting.key, factor)
+        const input = factorInput(setting)
+        expect(input.value).toBe(shown(factor))
     })
 
-    it('offers a small stored value in a form it accepts again', () => {
-        GM_setValue('testFactor', 0.000_000_1)
-        prompt.mockReturnValue(null).mockImplementationOnce((_message, value) => value ?? null)
-        registerFactorMenu(setting, 'Test-Faktor ändern')
-        vi.mocked(GM_registerMenuCommand).mock.calls[0]![1]()
-        expect(prompt.mock.calls[0]![1]).toBe('0,0000001')
-        expect(alert).not.toHaveBeenCalled()
+    it('stores a valid input at once, and an empty or invalid one removes the value and stays visible', () => {
+        const input = factorInput(setting)
+        const factor = randomFactor()
+        type(input, shown(factor))
+        expect(readFactor(setting)).toBe(factor)
+        expect(input.getAttribute('aria-invalid')).toBe('false')
+        for (const bad of ['', '2']) {
+            type(input, shown(factor))
+            type(input, bad)
+            expect(readFactor(setting)).toBeNull()
+            expect(input.getAttribute('aria-invalid')).toBe('true')
+            input.dispatchEvent(new Event('blur'))
+            expect(input.value).toBe(bad)
+        }
     })
 
-    it('refuses invalid input and asks again', () => {
-        prompt.mockReturnValueOnce('2').mockReturnValueOnce('0.123')
-        expect(getFactor(setting)).toBe(0.123)
-        expect(alert).toHaveBeenCalledTimes(1)
-        expect(prompt).toHaveBeenCalledTimes(2)
-    })
-
-    it('stores nothing when the user cancels', () => {
-        prompt.mockReturnValueOnce(null)
-        expect(getFactor(setting)).toBeNull()
-        expect(GM_setValue).not.toHaveBeenCalled()
-        expect(GM_getValue('testFactor')).toBeUndefined()
-    })
-
-    it('registers a menu entry that asks again and stores the new value', () => {
-        registerFactorMenu(setting, 'Test-Faktor ändern')
-        const call = vi.mocked(GM_registerMenuCommand).mock.calls[0]!
-        expect(call[0]).toBe('Test-Faktor ändern')
-        prompt.mockReturnValueOnce('0,456')
-        call[1]()
-        expect(GM_getValue('testFactor')).toBe(0.456)
-    })
-
-    it('shows a missing factor on the badge and asks for it on click', () => {
-        const badge = factorBadge(setting)
-        expect(badge.textContent).toBe('Faktor fehlt · eingeben')
-        const value = randomFactor()
-        prompt.mockReturnValueOnce(shown(value))
-        badge.click()
-        expect(GM_getValue('testFactor')).toBe(value)
-        expect(badge.textContent).toBe(`Faktor ${shown(value)} · ändern`)
-    })
-
-    it('updates every badge of the setting on a change from the menu, and none on cancel', () => {
-        const before = randomFactor()
-        GM_setValue('testFactor', before)
-        const badges = [factorBadge(setting), factorBadge(setting)]
-        const text = (value: number) => `Faktor ${shown(value)} · ändern`
-        expect(badges.map((b) => b.textContent)).toEqual([text(before), text(before)])
-        registerFactorMenu(setting, 'Test-Faktor ändern')
-        const menu = vi.mocked(GM_registerMenuCommand).mock.calls[0]![1]
-        prompt.mockReturnValueOnce(null)
-        menu()
-        expect(badges[1]!.textContent).toBe(text(before))
-        let after = randomFactor()
-        while (after === before) after = randomFactor()
-        prompt.mockReturnValueOnce(shown(after))
-        menu()
-        expect(badges.map((b) => b.textContent)).toEqual([text(after), text(after)])
-    })
-
-    it('follows a change made in another tab', () => {
-        const before = randomFactor()
-        GM_setValue('testFactor', before)
-        const badge = factorBadge(setting)
-        const [key, listener] = vi.mocked(GM_addValueChangeListener).mock.calls.at(-1)!
-        expect(key).toBe('testFactor')
-        let after = randomFactor()
-        while (after === before) after = randomFactor()
-        vi.mocked(GM_getValue).mockReturnValueOnce(after)
-        listener('testFactor', before, after, true)
-        expect(badge.textContent).toBe(`Faktor ${shown(after)} · ändern`)
+    it('follows a change from another tab, not its own', () => {
+        const input = factorInput(setting)
+        const listener = vi.mocked(GM_addValueChangeListener).mock.calls.at(-1)![1]
+        const first = randomFactor()
+        GM_setValue(setting.key, first)
+        listener(setting.key, undefined, first, true)
+        expect(input.value).toBe(shown(first))
+        input.value = 'im Tippen'
+        listener(setting.key, first, first, false)
+        expect(input.value).toBe('im Tippen')
     })
 })

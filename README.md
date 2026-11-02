@@ -145,12 +145,10 @@ Afterwards stop the dev server and remove the proxy mapping
 
 Purchase or payment conditions never go into this public code. A script that
 needs such a factor declares the setting by name in `scripts.config.ts`
-(`settings`), asks the user once, and keeps the value in Tampermonkey's storage
-(`GM_getValue`/`GM_setValue`), without a default. The script shows the stored
-value in its own interface and lets the user change it with one click
-(`factorBadge` from `@lib/settings`, e.g. "Faktor … · ändern" beside the
-Herkules exporter's CSV button, "Faktor fehlt · eingeben" without a value); the
-Tampermonkey menu entry is the fallback. Tests use random values.
+(`settings`) and keeps the value in Tampermonkey's storage (`GM_getValue`/`GM_setValue`),
+without a default. The script shows it where the user works, as a field to type in
+(`factorInput` from `@lib/settings`, e.g. the card on the right of the Herkules exporter);
+an empty field means no value, and the script stops instead of using an old one. Tests use random values.
 
 ### Adding a new userscript
 

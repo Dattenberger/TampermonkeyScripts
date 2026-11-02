@@ -13,7 +13,7 @@
 import versions from './versions.json' with { type: 'json' }
 
 export const AUTHOR = 'Robotico'
-const SETTINGS_GRANTS = ['GM_getValue', 'GM_setValue', 'GM_addValueChangeListener', 'GM_registerMenuCommand']
+const SETTINGS_GRANTS = ['GM_getValue', 'GM_setValue', 'GM_addValueChangeListener']
 
 export interface ScriptConfig {
     entry: string
@@ -78,14 +78,14 @@ export const scripts: Record<string, ScriptConfig> = {
     'herkules-haendler-orders-exporter': {
         entry: 'src/scripts/herkules-haendler-orders-exporter/main.ts',
         outputFileName: 'herkules-haendler-orders-exporter.user.js',
-        settings: ['herkulesDiscountFactor'],
+        settings: ['herkulesDiscountFactor', 'herkulesOrderNumbers'],
         userscript: {
             name: 'HerkulesHaendlerOrdersExporter v1',
             namespace: 'https://github.com/Dattenberger/TampermonkeyScripts',
             description:
-                'Exportiert Bestellungen aus der Herkules-Händler-Dokumenthistorie als CSV im JTL-Format der Husqvarna-Exporter (und optional Artikel;Menge).',
+                'Exportiert Bestellungen aus der Herkules-Händler-Dokumenthistorie als CSV im JTL-Format der Husqvarna-Exporter.',
             match: ['https://www.herkules-haendler.de/garten/de/account/*'],
-            grant: [],
+            grant: ['GM_addStyle'],
             updateURL:
                 'https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/herkules-haendler-orders-exporter.user.js',
             downloadURL:

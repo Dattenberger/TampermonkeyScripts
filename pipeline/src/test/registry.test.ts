@@ -23,8 +23,8 @@ describe('script registry', () => {
         }
     })
 
-    it('derives the storage and menu grants from declared settings, once each', () => {
-        const grants = ['GM_addStyle', 'GM_getValue', 'GM_setValue', 'GM_addValueChangeListener', 'GM_registerMenuCommand']
+    it('derives the storage grants from declared settings, once each', () => {
+        const grants = ['GM_addStyle', 'GM_getValue', 'GM_setValue', 'GM_addValueChangeListener']
         expect(userscriptHeader(fake, '1.0.0').grant).toEqual(grants)
         expect(userscriptHeader({ ...fake, settings: undefined }, '1.0.0').grant).toEqual(['GM_addStyle', 'GM_getValue'])
     })

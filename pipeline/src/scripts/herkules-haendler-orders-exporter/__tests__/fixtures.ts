@@ -16,7 +16,7 @@ export const HISTORY_PAGE = `<div class="archiveTable__row">
     ${documentForm('order', 'AB-0001')}${documentForm('shipment', 'LS-0001')}${documentForm('invoice', 'RE-0001')}
 </div>`
 
-function row(description: string, quantity = '', price = ''): string {
+export function row(description: string, quantity = '', price = ''): string {
     return `<div class="itemtable_row">
         <div class="description_line">${description}</div>
         <div class="text-center"><span class="itemtable_label">Menge</span> ${quantity}</div>
@@ -24,7 +24,7 @@ function row(description: string, quantity = '', price = ''): string {
     </div>`
 }
 
-function modal(body: string): string {
+export function modal(body: string): string {
     return `<html><body><div class="modal"><p>Datum: 01.02.2030</p><div class="itemtable_list">${body}</div></div></body></html>`
 }
 
