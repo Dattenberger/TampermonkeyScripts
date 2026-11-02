@@ -147,8 +147,14 @@ Purchase or payment conditions never go into this public code. A script that
 needs such a factor declares the setting by name in `scripts.config.ts`
 (`settings`) and keeps the value in Tampermonkey's storage (`GM_getValue`/`GM_setValue`),
 without a default. The script shows it where the user works, as a field to type in
-(`factorInput` from `@lib/settings`, e.g. the card on the right of the Herkules exporter);
-an empty field means no value, and the script stops instead of using an old one. Tests use random values.
+(`discountPercentInput` from `@lib/settings`, e.g. the card on the right of the Herkules exporter):
+a discount is typed in percent and stored as the factor on the net price. An empty field
+means no value, and the script stops instead of using an old one. Tests use random values.
+
+The root scripts that share the Husqvarna discount (`hsqvrn_protal_*`, `weborder*.js`) cannot
+import the library; each carries the same block (`// --- local discount factor ---`), which
+shows the value as a card at the bottom right, and `src/test/local-factor.test.ts` keeps the
+copies identical.
 
 ### Adding a new userscript
 
