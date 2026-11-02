@@ -8,7 +8,8 @@ export const ORDER_FIELD = 'herkules-order-field'
 const SUGGESTED = 'is-suggested'
 /** Shown for a typed value that is no D-BE number; the export refuses it with the same words. */
 export const INVALID_TEXT = 'Keine gültige D-BE-Nummer.'
-/** The placeholder once the references are in: whatever they held, the user may type a number. */
+/** Placeholders: while the references load, then, whatever they held, an invitation to type. */
+const LOADING = 'lädt …'
 const TYPE_IT = 'D-BE eintragen'
 
 export interface OrderField {
@@ -32,13 +33,12 @@ export function createOrderField(portalOrder: string, onEdit: (problem?: string)
     input.value = readOrderNumber(portalOrder)
 
     let source: string | undefined = 'Die Referenz aus Lieferschein und Rechnung lädt.'
-    let placeholder = 'lädt …'
     let pending = true
     let edited = Boolean(input.value)
     const describe = () => {
         const typed = edited && input.value ? 'Von Hand eingetragen. ' : ''
         input.title = `${typed}${source ?? ''}`
-        input.placeholder = placeholder
+        input.placeholder = pending && !edited ? LOADING : TYPE_IT
     }
     describe()
 
@@ -53,7 +53,6 @@ export function createOrderField(portalOrder: string, onEdit: (problem?: string)
         input.value = number
         input.removeAttribute('aria-invalid')
         writeOrderNumber(portalOrder, number)
-        placeholder = TYPE_IT
         describe()
         onEdit()
     }
@@ -86,7 +85,6 @@ export function createOrderField(portalOrder: string, onEdit: (problem?: string)
             // One order becomes one JTL order: with two numbers in it, only the user can say which one.
             const unique = numbers.length === 1 ? numbers[0] : undefined
             source = unique ? portal : `Referenz nicht erkannt. ${portal}`
-            placeholder = TYPE_IT
             if (unique && !edited) {
                 input.value = unique
                 input.classList.add(SUGGESTED)
@@ -96,7 +94,6 @@ export function createOrderField(portalOrder: string, onEdit: (problem?: string)
         showLoadFailure: () => {
             pending = false
             source = 'Lieferschein oder Rechnung konnten nicht geladen werden. Seite neu laden.'
-            placeholder = TYPE_IT
             describe()
         },
         markInvalid: () => {

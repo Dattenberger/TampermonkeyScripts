@@ -55,7 +55,7 @@ describe('local discount factor in the root scripts', () => {
         for (const grant of ['GM_getValue', 'GM_setValue']) expect(source).toContain(`// @grant        ${grant}\n`)
         expect(source).not.toContain('// @grant        none')
         expect(source).not.toMatch(/askFactor|GM_registerMenuCommand|prompt\(/)
-        expect(source).toMatch(/showDiscountCard\(readFactor\(\) === null/)
+        expect(source).toMatch(/^ {8}showDiscountCard\(\);$/m)
         expect(source).not.toMatch(/(?:factor|faktor)\w*["']?\s*[:=]\s*\d/i)
         expect(source).not.toMatch(/\*\s*0[.,]\d/)
         expect(source).not.toMatch(/\d\s*%\s*(?:rabatt|skonto)/i)
@@ -78,17 +78,20 @@ describe('local discount factor in the root scripts', () => {
             expect(script.formatDiscountPercent(factor)).toBe(percentOf(factor))
         }
         expect(script.parseDiscountPercent('0')).toBe(1)
-        expect(script.parseDiscountPercent(' 12,5 % ')).toBe(0.875)
+        const factor = randomFactor()
+        expect(script.parseDiscountPercent(` ${percentOf(factor)} % `)).toBe(factor)
         for (const bad of ['100', '-1', 'abc', '', '%', '2,5,1']) expect(script.parseDiscountPercent(bad)).toBeNull()
     })
 
-    it('opens the card without a value, stores what is typed as the factor and folds it on Escape', () => {
-        const card = script.showDiscountCard(true)
+    it('opens the card by itself without a value, stores what is typed as the factor and folds it on Escape', () => {
+        const card = script.showDiscountCard()
         const input = card.querySelector('input')!
         expect(card.classList.contains('is-open')).toBe(true)
         expect(card.textContent).toContain('Skonto fehlt')
         expect(card.textContent).toContain('Robotico · JTL')
-        expect(document.activeElement).toBe(input)
+        // On page load the card waits; only an export that needs the value marks it and takes the cursor.
+        expect(input.hasAttribute('aria-invalid')).toBe(false)
+        expect(document.activeElement).not.toBe(input)
         const factor = randomFactor()
         type(input, `${percentOf(factor)} %`)
         expect(GM_getValue(KEY)).toBe(factor)
@@ -100,13 +103,17 @@ describe('local discount factor in the root scripts', () => {
         expect(script.readFactor()).toBeNull()
         expect(input.getAttribute('aria-invalid')).toBe('true')
         expect(card.classList.contains('is-missing')).toBe(true)
+        // Folding is the user's choice in either state.
+        card.classList.add('is-open')
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+        expect(card.classList.contains('is-open')).toBe(false)
     })
 
     it('shows a stored factor folded, as its percentage, once per page; the head unfolds it', () => {
         const factor = randomFactor()
         GM_setValue(KEY, factor)
-        const card = script.showDiscountCard(false)
-        script.showDiscountCard(false)
+        const card = script.showDiscountCard()
+        script.showDiscountCard()
         expect(document.querySelectorAll('#robotico-discount-card')).toHaveLength(1)
         expect(card.classList.contains('is-open')).toBe(false)
         expect(card.querySelector('input')!.value).toBe(percentOf(factor))
@@ -115,12 +122,15 @@ describe('local discount factor in the root scripts', () => {
         expect(card.querySelector('.rd-head')!.getAttribute('aria-expanded')).toBe('true')
     })
 
-    it('calls back once a valid value is left, not for an invalid one', () => {
-        const changed = vi.fn()
-        const input = script.showDiscountCard(true, changed).querySelector('input')!
-        type(input, 'abc')
-        expect(changed).not.toHaveBeenCalled()
-        type(input, percentOf(randomFactor()))
-        expect(changed).toHaveBeenCalledTimes(1)
+    it('asks on an export: unfolds the folded card, marks a missing value and takes the cursor', () => {
+        GM_setValue(KEY, randomFactor())
+        const card = script.showDiscountCard()
+        GM_setValue(KEY, undefined)
+        expect(script.showDiscountCard(true)).toBe(card)
+        const input = card.querySelector('input')!
+        expect(card.classList.contains('is-open')).toBe(true)
+        expect(input.getAttribute('aria-invalid')).toBe('true')
+        expect(document.activeElement).toBe(input)
+        expect(card.textContent).toContain('Skonto fehlt')
     })
 })

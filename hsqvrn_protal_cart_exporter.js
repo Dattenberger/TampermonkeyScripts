@@ -21,13 +21,15 @@
     // Tampermonkey keeps it in this browser. It is typed and shown in percent, as supplier terms state
     // it, and stored as the factor on the net price (one minus the percentage over a hundred), so
     // values stored by earlier versions stay valid. A card at the bottom right, above the portals'
-    // own bottom bars, holds the field: folded to a small tab while a value is stored, open while
-    // none is. Every root script that uses the key
-    // carries this block unchanged (pipeline/src/test/local-factor.test.ts).
+    // own bottom bars, holds the field: open while no value is stored, else folded to a small tab.
+    // Scripts read the value when they calculate, so a new value applies from the next export or
+    // page load. Every root script that uses the key carries this block unchanged
+    // (pipeline/src/test/local-factor.test.ts).
     const FACTOR_KEY = 'husqvarnaDiscountFactor';
     const DISCOUNT_CARD = 'robotico-discount-card';
     const PLAIN_DECIMAL = /^\d*[.,]?\d+$/;
-    let discountChanged = null;
+    /** Digits kept between factor and percent, so a whole percentage does not show as x,9999…. */
+    const PRECISION = 1e10;
 
     function parseFactor(input) {
         const text = String(input ?? '').trim();
@@ -39,38 +41,39 @@
         return parseFactor(GM_getValue(FACTOR_KEY));
     }
 
-    /** '3', '2,5' or '3 %' as the stored factor; null outside [0, 100). */
+    /** A typed percentage (comma or dot, a trailing % allowed) as the stored factor; null outside [0, 100). */
     function parseDiscountPercent(input) {
         const text = String(input ?? '').trim().replace(/\s*%$/, '');
         const percent = PLAIN_DECIMAL.test(text) ? Number(text.replace(',', '.')) : NaN;
-        return percent < 100 ? parseFactor(Math.round((1 - percent / 100) * 1e10) / 1e10) : null;
+        return percent < 100 ? parseFactor(Math.round((1 - percent / 100) * PRECISION) / PRECISION) : null;
     }
 
     function formatDiscountPercent(factor) {
-        const percent = Math.round((1 - factor) * 100 * 1e10) / 1e10;
+        const percent = Math.round((1 - factor) * 100 * PRECISION) / PRECISION;
         return percent.toLocaleString('de-DE', { useGrouping: false, maximumFractionDigits: 10 });
     }
 
     const DISCOUNT_CSS = `
-        #${DISCOUNT_CARD} { position: fixed; right: 16px; bottom: 104px; z-index: 2147483000; box-sizing: border-box; width: max-content;
-            background: #fafafa; border: 1px solid #dcdcdc; border-left: 3px solid #3d3d3c; border-radius: 6px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, .15); color: #3d3d3c; font: 13px/18px Arial, sans-serif; text-align: left; }
+        #${DISCOUNT_CARD} { --rd-ink: #3d3d3c; --rd-muted: #6f6f6f;
+            position: fixed; right: 16px; bottom: 104px; z-index: 2147483000; box-sizing: border-box; width: max-content;
+            background: #fafafa; border: 1px solid #dcdcdc; border-left: 3px solid var(--rd-ink); border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, .15); color: var(--rd-ink); font: 13px/18px Arial, sans-serif; text-align: left; }
         #${DISCOUNT_CARD}.is-open { width: 240px; }
         #${DISCOUNT_CARD} * { box-sizing: border-box; }
         #${DISCOUNT_CARD} .rd-head { display: flex; width: 100%; align-items: center; gap: 8px; margin: 0; padding: 8px 10px;
             border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-        #${DISCOUNT_CARD} .rd-tag { flex: 1; white-space: nowrap; color: #6f6f6f; font: 600 10px/12px Arial, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+        #${DISCOUNT_CARD} .rd-tag { flex: 1; white-space: nowrap; color: var(--rd-muted); font: 600 10px/12px Arial, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
         #${DISCOUNT_CARD} .rd-state { font-weight: 600; font-size: 12px; white-space: nowrap; }
         #${DISCOUNT_CARD}.is-missing .rd-state { color: #b02a37; }
         #${DISCOUNT_CARD}:not(.is-open) .rd-body { display: none; }
         #${DISCOUNT_CARD} .rd-body { padding: 0 10px 10px; }
-        #${DISCOUNT_CARD} label { display: block; margin: 0; color: #3d3d3c; font-weight: 600; }
+        #${DISCOUNT_CARD} label { display: block; margin: 0; color: var(--rd-ink); font-weight: 600; }
         #${DISCOUNT_CARD} .rd-percent { display: flex; align-items: center; gap: 6px; margin: 4px 0 6px; font-weight: 400; }
         #${DISCOUNT_CARD} input { width: 72px; height: auto; margin: 0; padding: 5px 8px; border: 1px solid #bbb; border-radius: 5px;
-            background: #fff; color: #3d3d3c; font: 14px/18px Arial, sans-serif; text-align: right; }
+            background: #fff; color: var(--rd-ink); font: 14px/18px Arial, sans-serif; text-align: right; }
         #${DISCOUNT_CARD} input[aria-invalid='true'] { border-color: #dc3545; background: #fff5f5; }
-        #${DISCOUNT_CARD} input:focus-visible, #${DISCOUNT_CARD} .rd-head:focus-visible { outline: 2px solid #3d3d3c; outline-offset: 2px; }
-        #${DISCOUNT_CARD} small { display: block; color: #6f6f6f; font-size: 11px; line-height: 14px; }
+        #${DISCOUNT_CARD} input:focus-visible, #${DISCOUNT_CARD} .rd-head:focus-visible { outline: 2px solid var(--rd-ink); outline-offset: 2px; }
+        #${DISCOUNT_CARD} small { display: block; color: var(--rd-muted); font-size: 11px; line-height: 14px; }
     `;
 
     function renderDiscountCard(card) {
@@ -103,11 +106,8 @@
             input.setAttribute('aria-invalid', String(value === null));
             renderDiscountCard(card);
         });
-        input.addEventListener('change', () => {
-            if (readFactor() !== null && discountChanged) discountChanged();
-        });
         input.addEventListener('keydown', (event) => {
-            if (event.key !== 'Escape' || readFactor() === null) return;
+            if (event.key !== 'Escape') return;
             card.classList.remove('is-open');
             renderDiscountCard(card);
         });
@@ -121,17 +121,18 @@
     }
 
     /**
-     * Shows the card, once per page. `open` unfolds it with the cursor in the field: on start without
-     * a value, and when an export needs one. `onChange` runs once the user has typed a valid value and
-     * left the field (a script whose page shows prices with the discount recalculates there).
+     * Shows the card, once per page: open while no value is stored, else folded. `ask` unfolds it
+     * with the cursor in the field and marks a missing value, for an export that needs one.
      */
-    function showDiscountCard(open = false, onChange = null) {
-        if (onChange) discountChanged = onChange;
-        const card = document.getElementById(DISCOUNT_CARD) ?? buildDiscountCard();
-        if (open) {
+    function showDiscountCard(ask = false) {
+        const known = document.getElementById(DISCOUNT_CARD);
+        const card = known ?? buildDiscountCard();
+        const missing = readFactor() === null;
+        if (!known && missing) card.classList.add('is-open');
+        if (ask) {
             card.classList.add('is-open');
             const input = card.querySelector('input');
-            if (readFactor() === null) input.setAttribute('aria-invalid', 'true');
+            if (missing) input.setAttribute('aria-invalid', 'true');
             input.focus({ preventScroll: true });
         }
         renderDiscountCard(card);
@@ -252,7 +253,7 @@
     }
 
     function start() {
-        showDiscountCard(readFactor() === null);
+        showDiscountCard();
         const tablesSelector = `div[data-test="cart"] div[role="table"]`
 
         tableObserver(tablesSelector, null)

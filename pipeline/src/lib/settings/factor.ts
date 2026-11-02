@@ -14,7 +14,7 @@ export interface FactorSetting {
 }
 
 const PLAIN_DECIMAL = /^\d*[.,]?\d+$/
-/** Digits kept when converting between factor and percent, so 1 − 0.03 shows as 3, not 2.9999…. */
+/** Digits kept when converting between factor and percent, so a whole percentage does not show as x,9999…. */
 const PRECISION = 1e10
 
 /** A number as the user types it: comma, no grouping, no exponent (String(1e-7) is '1e-7'). */
@@ -32,7 +32,7 @@ export function parseFactor(input: unknown): number | null {
     return value > 0 && value <= 1 && shown > 0 ? value : null
 }
 
-/** A typed discount in percent ('3', '2,5', '3 %') as the stored factor; null outside [0, 100). */
+/** A typed discount in percent (comma or dot, a trailing % allowed) as the stored factor; null outside [0, 100). */
 export function parseDiscountPercent(input: string): number | null {
     const text = input.trim().replace(/\s*%$/, '')
     if (!PLAIN_DECIMAL.test(text)) return null

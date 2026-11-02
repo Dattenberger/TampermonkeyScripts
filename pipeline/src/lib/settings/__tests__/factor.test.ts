@@ -39,8 +39,9 @@ describe('factor setting', () => {
             expect(formatDiscountPercent(factor)).toBe(shown(factor))
         }
         expect(parseDiscountPercent('0')).toBe(1)
-        expect(parseDiscountPercent(' 12,5 % ')).toBe(0.875)
-        expect(parseDiscountPercent('12.5%')).toBe(0.875)
+        const factor = randomFactor()
+        expect(parseDiscountPercent(` ${shown(factor)} % `)).toBe(factor)
+        expect(parseDiscountPercent(`${shown(factor).replace(',', '.')}%`)).toBe(factor)
         for (const bad of ['100', '150', '-1', 'abc', '', '%', '2,5,1', '99,999999999999']) expect(parseDiscountPercent(bad)).toBeNull()
         // A stored factor from before the percent field reads back as its percentage.
         expect(formatDiscountPercent(1)).toBe('0')

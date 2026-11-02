@@ -177,6 +177,7 @@
 	var ORDER_FIELD = "herkules-order-field";
 	var SUGGESTED = "is-suggested";
 	var INVALID_TEXT = "Keine gültige D-BE-Nummer.";
+	var LOADING = "lädt …";
 	var TYPE_IT = "D-BE eintragen";
 	function createOrderField(portalOrder, onEdit) {
 		const input = document.createElement("input");
@@ -186,12 +187,11 @@
 		input.setAttribute("aria-label", `D-BE-Nummer von Bestellung ${portalOrder}`);
 		input.value = readOrderNumber(portalOrder);
 		let source = "Die Referenz aus Lieferschein und Rechnung lädt.";
-		let placeholder = "lädt …";
 		let pending = true;
 		let edited = Boolean(input.value);
 		const describe = () => {
 			input.title = `${edited && input.value ? "Von Hand eingetragen. " : ""}${source ?? ""}`;
-			input.placeholder = placeholder;
+			input.placeholder = pending && !edited ? LOADING : TYPE_IT;
 		};
 		describe();
 		const commit = () => {
@@ -205,7 +205,6 @@
 			input.value = number;
 			input.removeAttribute("aria-invalid");
 			writeOrderNumber(portalOrder, number);
-			placeholder = TYPE_IT;
 			describe();
 			onEdit();
 		};
@@ -235,7 +234,6 @@
 				const portal = texts.length > 0 ? `„Ihre Referenz“ im Portal: ${texts.join(" · ")}` : "In Lieferschein und Rechnung steht keine „Ihre Referenz“.";
 				const unique = numbers.length === 1 ? numbers[0] : void 0;
 				source = unique ? portal : `Referenz nicht erkannt. ${portal}`;
-				placeholder = TYPE_IT;
 				if (unique && !edited) {
 					input.value = unique;
 					input.classList.add(SUGGESTED);
@@ -245,7 +243,6 @@
 			showLoadFailure: () => {
 				pending = false;
 				source = "Lieferschein oder Rechnung konnten nicht geladen werden. Seite neu laden.";
-				placeholder = TYPE_IT;
 				describe();
 			},
 			markInvalid: () => {
@@ -257,26 +254,31 @@
 	var CSV_BUTTON = "herkules-csv-btn";
 	var STATUS = "herkules-status";
 	var GROUP = "herkules-export";
+	var GROUP_LINE = "herkules-export-line";
 	var COLUMN_LABEL = "herkules-column";
+	var TAG = "herkules-tag";
+	var PERCENT = "herkules-percent";
 	var PANEL_ID = "herkules-export-panel";
 	var TAG_TEXT = "Robotico · JTL-Export";
 	var BUTTON_TITLE = "CSV dieser Bestellung für den JTL-Import herunterladen";
 	var INK = "#3d3d3c";
 	var MUTED = "#6f6f6f";
+	var COLUMN_WIDTH = "214px";
+	var COLUMN_GAP = "16px";
 	var CSS = `
     @media (min-width: 768px) { .archiveTable__typeLine, .archiveTable__dateLine, .archiveTable__totalLine { width: 125px; } }
-    form[data-herkules-export] { display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
+    form[data-herkules-export] { display: flex; align-items: center; justify-content: flex-end; gap: ${COLUMN_GAP}; }
     .${COLUMN_LABEL} {
-        display: inline-block; width: 214px; margin-left: 16px; text-align: left; vertical-align: middle;
+        display: inline-block; width: ${COLUMN_WIDTH}; margin-left: ${COLUMN_GAP}; text-align: left; vertical-align: middle;
         color: ${MUTED}; font: 600 11px/14px Arial, sans-serif; letter-spacing: .04em; text-transform: uppercase;
     }
     .${GROUP} {
-        flex: 0 0 auto; box-sizing: border-box; width: 214px; max-width: 100%; margin: 0; padding: 6px 7px;
+        flex: 0 0 auto; box-sizing: border-box; width: ${COLUMN_WIDTH}; max-width: 100%; margin: 0; padding: 6px 7px;
         border: 1px solid #dcdcdc; border-left: 3px solid ${INK}; border-radius: 6px; background: #fafafa;
         color: ${INK}; font: 12px/16px Arial, sans-serif; text-align: left;
     }
-    .herkules-tag { display: block; margin: 0 0 8px; color: ${MUTED}; font: 600 10px/12px Arial, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
-    .herkules-export-line { display: flex; gap: 6px; align-items: center; }
+    .${TAG} { display: block; margin: 0 0 8px; color: ${MUTED}; font: 600 10px/12px Arial, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+    .${GROUP_LINE} { display: flex; gap: 6px; align-items: center; }
     input.${ORDER_FIELD} {
         box-sizing: border-box; flex: 1 1 auto; width: 0; min-width: 0; height: 28px; margin: 0; padding: 3px 7px;
         border: 1px solid #bbb; border-radius: 5px; background: #fff; color: ${INK}; font: 13px/18px Arial, sans-serif;
@@ -300,7 +302,7 @@
     button.${CSV_BUTTON}.is-error:hover { background: #bd2130; border-color: #bd2130; }
     .${STATUS} { display: block; margin: 5px 0 0; color: #b02a37; font: 11px/14px Arial, sans-serif; }
     .${STATUS}:empty { display: none; }
-    .${STATUS}.is-info { color: #1e7e34; }
+    .${STATUS}.is-success { color: #1e7e34; }
     #${PANEL_ID} {
         float: right; box-sizing: border-box; width: 210px; margin: 0 0 12px 24px; padding: 10px 12px 12px;
         background: #fafafa; border: 1px solid #dcdcdc; border-left: 3px solid ${INK}; border-radius: 6px;
@@ -308,7 +310,7 @@
     }
     #${PANEL_ID}.is-floating { float: none; position: fixed; right: 16px; bottom: 16px; z-index: 1000; margin: 0; box-shadow: 0 2px 10px rgba(0, 0, 0, .12); }
     #${PANEL_ID} label { display: block; color: ${INK}; font-weight: 600; }
-    .herkules-percent { display: flex; align-items: center; gap: 6px; margin: 4px 0 6px; font-weight: 400; }
+    .${PERCENT} { display: flex; align-items: center; gap: 6px; margin: 4px 0 6px; font-weight: 400; }
     #${PANEL_ID} input {
         box-sizing: border-box; width: 72px; margin: 0; padding: 5px 8px; text-align: right;
         border: 1px solid #bbb; border-radius: 5px; background: #fff; font: 14px/18px Arial, sans-serif;
@@ -334,20 +336,14 @@
 		if (state !== "idle") button.classList.add(`is-${state}`);
 		button.title = detail ?? BUTTON_TITLE;
 		status.textContent = detail ?? "";
-		status.classList.toggle("is-info", state === "success");
-	}
-	function tag() {
-		const element = document.createElement("span");
-		element.className = "herkules-tag";
-		element.textContent = TAG_TEXT;
-		return element;
+		status.classList.toggle("is-success", state === "success");
 	}
 	function exportGroup(field, button, status) {
 		const group = document.createElement("div");
 		group.className = GROUP;
 		group.title = TAG_TEXT;
 		const line = document.createElement("div");
-		line.className = "herkules-export-line";
+		line.className = GROUP_LINE;
 		line.append(field, button);
 		group.append(line, status);
 		return group;
@@ -369,14 +365,17 @@
 		label.textContent = "Skonto-Wert";
 		label.title = setting.label;
 		const percent = document.createElement("span");
-		percent.className = "herkules-percent";
+		percent.className = PERCENT;
 		const input = discountPercentInput(setting);
 		input.placeholder = "–";
 		percent.append(input, "%");
 		label.append(percent);
 		const hint = document.createElement("small");
 		hint.textContent = "Wird in der CSV vom Netto-Händlerpreis abgezogen. Nur in diesem Browser gespeichert.";
-		panel.append(tag(), label, hint);
+		const tag = document.createElement("span");
+		tag.className = TAG;
+		tag.textContent = TAG_TEXT;
+		panel.append(tag, label, hint);
 		const heading = document.querySelector("h1");
 		if (heading) heading.before(panel);
 		else {
@@ -384,7 +383,7 @@
 			document.body.append(panel);
 		}
 	}
-	function focusFactor() {
+	function focusDiscount() {
 		const input = document.querySelector(`#${PANEL_ID} input`);
 		input?.setAttribute("aria-invalid", "true");
 		input?.focus({ preventScroll: true });
@@ -442,7 +441,7 @@
 		if (orderNumberInJtl === "" && field.pending()) return fail("Referenz lädt noch, gleich erneut klicken.");
 		const discountFactor = readFactor(DISCOUNT_FACTOR);
 		if (discountFactor === null) {
-			focusFactor();
+			focusDiscount();
 			return fail("Skonto-Wert fehlt (oben rechts).");
 		}
 		return {

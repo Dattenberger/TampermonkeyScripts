@@ -7,7 +7,7 @@ import { readFactor, type FactorSetting } from '@lib/settings'
 import { parseOrderDate, parsePositions, parseReferences } from './parse.js'
 import { createOrderField, INVALID_TEXT, type OrderField } from './order-field.js'
 import { downloadCsv, toCsv, toJtlRows } from './rows.js'
-import { attachPanel, CSV_BUTTON, exportGroup, focusFactor, labelColumn, setButtonState, STATUS } from './ui.js'
+import { attachPanel, CSV_BUTTON, exportGroup, focusDiscount, labelColumn, setButtonState, STATUS } from './ui.js'
 
 /** Discount factor per the supplier's terms: a local setting, never a value in this public code. */
 export const DISCOUNT_FACTOR: FactorSetting = {
@@ -81,7 +81,7 @@ function exportValues({ button, status, field }: OrderRow, allowEmpty: boolean):
     if (orderNumberInJtl === '' && field.pending()) return fail('Referenz lädt noch, gleich erneut klicken.')
     const discountFactor = readFactor(DISCOUNT_FACTOR)
     if (discountFactor === null) {
-        focusFactor()
+        focusDiscount()
         return fail('Skonto-Wert fehlt (oben rechts).')
     }
     return { orderNumberInJtl, discountFactor }
