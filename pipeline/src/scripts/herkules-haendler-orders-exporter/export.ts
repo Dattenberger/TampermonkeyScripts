@@ -5,14 +5,14 @@
 
 import { readFactor, type FactorSetting } from '@lib/settings'
 import { parseOrderDate, parsePositions, parseReferences } from './parse.js'
-import { createOrderField, type OrderField } from './order-field.js'
+import { createOrderField, INVALID_TEXT, type OrderField } from './order-field.js'
 import { downloadCsv, toCsv, toJtlRows } from './rows.js'
-import { attachPanel, CSV_BUTTON, focusFactor, setButtonState, STATUS } from './ui.js'
+import { attachPanel, CSV_BUTTON, exportGroup, focusFactor, labelColumn, setButtonState, STATUS } from './ui.js'
 
 /** Discount factor per the supplier's terms: a local setting, never a value in this public code. */
 export const DISCOUNT_FACTOR: FactorSetting = {
     key: 'herkulesDiscountFactor',
-    label: 'Skonto-Faktor laut Lieferantenkonditionen (Faktor auf den Netto-Händlerpreis).',
+    label: 'Skonto laut Lieferantenkonditionen, in Prozent vom Netto-Händlerpreis.',
 }
 
 function field(form: HTMLFormElement, name: string): string | undefined {
@@ -76,17 +76,13 @@ function exportValues({ button, status, field }: OrderRow, allowEmpty: boolean):
     const orderNumberInJtl = field.read()
     if (orderNumberInJtl === null || (orderNumberInJtl === '' && !allowEmpty && !field.pending())) {
         field.markInvalid()
-        return fail(
-            orderNumberInJtl === null
-                ? 'Keine D-BE-Nummer: D-BE und Ziffern, mit oder ohne -I.'
-                : 'D-BE-Nummer fehlt. Eintragen, oder Doppelklick auf CSV: Export ohne Nummer, JTL legt eine neue an.',
-        )
+        return fail(orderNumberInJtl === null ? INVALID_TEXT : 'D-BE fehlt. Doppelklick auf CSV exportiert ohne Nummer.')
     }
-    if (orderNumberInJtl === '' && field.pending()) return fail('Die Referenz lädt noch. Gleich noch einmal klicken.')
+    if (orderNumberInJtl === '' && field.pending()) return fail('Referenz lädt noch, gleich erneut klicken.')
     const discountFactor = readFactor(DISCOUNT_FACTOR)
     if (discountFactor === null) {
         focusFactor()
-        return fail('Skonto-Faktor fehlt: bitte oben rechts im Feld „Skonto-Faktor“ eintragen.')
+        return fail('Skonto-Wert fehlt (oben rechts).')
     }
     return { orderNumberInJtl, discountFactor }
 }
@@ -107,7 +103,7 @@ async function exportOrder(row: OrderRow, allowEmpty = false): Promise<void> {
         if (!values) return
         const rows = toJtlRows(positions, orderNumber, parseOrderDate(doc), references, values.discountFactor, values.orderNumberInJtl)
         downloadCsv(toCsv(rows), `herkules-${orderNumber}.csv`)
-        const result = values.orderNumberInJtl ? `Heruntergeladen mit ${values.orderNumberInJtl}-I` : 'Heruntergeladen ohne Nummer: JTL legt eine neue an.'
+        const result = values.orderNumberInJtl ? `Heruntergeladen: ${values.orderNumberInJtl}-I` : 'Ohne Nummer heruntergeladen, JTL vergibt eine.'
         setButtonState(button, 'success', status, result)
         // The double click accepted the empty field the first click had marked.
         row.field.input.removeAttribute('aria-invalid')
@@ -174,16 +170,17 @@ function queueReferences({ form, field: orderField }: OrderRow): void {
     })
 }
 
-/** Adds the panel once, and to every order row, once per form, our number's field and the CSV button after "Details". */
+/** Adds the panel and the column head once, and to every order row, once per form, our number's field and the CSV button after "Details". */
 export function attachExport(): void {
     attachPanel(DISCOUNT_FACTOR)
+    labelColumn()
     let added = 0
     for (const form of document.querySelectorAll<HTMLFormElement>('form[action*="webshop_document_history"]')) {
         const details = form.querySelector('button[name="view_document_card"]')
         if (field(form, 'document_type') !== 'order' || form.dataset.herkulesExport || !details) continue
         form.dataset.herkulesExport = '1'
         const row = makeRow(form)
-        details.after(row.field.input, row.button, row.status)
+        details.after(exportGroup(row.field.input, row.button, row.status))
         queueReferences(row)
         added += 1
     }

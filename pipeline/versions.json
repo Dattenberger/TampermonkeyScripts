@@ -4,7 +4,7 @@
         "sha256": "130bf99de0aae68fca75e821654565298d16e64a5bb18600966086610d8163d6"
     },
     "herkules-haendler-orders-exporter": {
-        "version": "0.1.2",
-        "sha256": "5af3a386ea61bf468b9afeafaf44df89de1ae3c3ea9c5938a75ff4c934f7aba6"
+        "version": "0.1.3",
+        "sha256": "4523fe82c52bf8e414f660111a22fc927ce2d75c070c4265d2fc2ec38d0f646c"
     }
 }

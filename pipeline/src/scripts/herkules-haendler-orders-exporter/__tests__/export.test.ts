@@ -74,7 +74,7 @@ describe('herkules export', () => {
         const lines = text.split('\r\n')
         expect(lines[1]).toBe('ART-0001;D-BE0000001-I;ART-X1;Testartikel Eins;6;0,5059;01.02.2030;N;AB-0001')
         expect(lines[2]!.split(';')[1]).toBe('D-BE0000001-I')
-        expect(status.textContent).toBe('Heruntergeladen mit D-BE0000001-I')
+        expect(status.textContent).toBe('Heruntergeladen: D-BE0000001-I')
     })
 
     it('stores a typed number without -I, prefers it over the reference after a reload, and keeps other orders', async () => {
@@ -96,7 +96,8 @@ describe('herkules export', () => {
         exportedFrom(modal(row('Nr.: ART-0001') + row('Ihre Referenz: Kunde Muster')))
         const { input } = await loadRow()
         expect(input.value).toBe('')
-        expect(input.placeholder).toBe('Referenz nicht erkannt')
+        expect(input.placeholder).toBe('D-BE eintragen')
+        expect(input.title).toContain('Referenz nicht erkannt')
         expect(input.title).toContain('Kunde Muster')
     })
 
@@ -110,7 +111,8 @@ describe('herkules export', () => {
     it('says so when the references cannot be loaded, and a typed number still exports', async () => {
         fetchMock.mockRejectedValueOnce(new Error('offline'))
         const { input, button } = await loadRow()
-        expect(input.placeholder).toBe('Referenz nicht geladen')
+        expect(input.placeholder).toBe('D-BE eintragen')
+        expect(input.title).toContain('nicht geladen')
         type(input, 'D-BE0000007')
         button.click()
         await vi.waitFor(() => expect(button.textContent).toBe('✓ CSV'))
@@ -128,7 +130,7 @@ describe('herkules export', () => {
         expect(enter.defaultPrevented).toBe(true)
         expect(submit).not.toHaveBeenCalled()
         expect(input.getAttribute('aria-invalid')).toBe('true')
-        expect(status.textContent).toContain('Nicht gespeichert')
+        expect(status.textContent).toBe('Keine gültige D-BE-Nummer.')
         expect(GM_getValue(ORDER_NUMBERS_KEY)).toBeUndefined()
         fetchMock.mockClear()
         button.click()
@@ -154,7 +156,7 @@ describe('herkules export', () => {
         const fields = text.split('\r\n')[1]!.split(';')
         expect(fields[1]).toBe('')
         expect(fields[8]).toBe('AB-0001')
-        expect(status.textContent).toContain('ohne Nummer')
+        expect(status.textContent).toContain('Ohne Nummer')
         expect(input.hasAttribute('aria-invalid')).toBe(false)
     })
 
@@ -192,7 +194,7 @@ describe('herkules export', () => {
         GM_setValue(DISCOUNT_FACTOR.key, undefined)
         await vi.waitFor(() => expect(button.textContent).toBe('✗ CSV'))
         expect(createObjectURL).not.toHaveBeenCalled()
-        expect(status.textContent).toContain('Skonto-Faktor fehlt')
+        expect(status.textContent).toContain('Skonto-Wert fehlt')
     })
 
     it('editing the number during an export does not free the button for a second file', async () => {
@@ -213,20 +215,25 @@ describe('herkules export', () => {
         button.click()
         expect(button.textContent).toBe('✗ CSV')
         expect(fetchMock).not.toHaveBeenCalled()
-        expect(status.textContent).toContain('Skonto-Faktor fehlt')
+        expect(status.textContent).toContain('Skonto-Wert fehlt')
         const input = document.querySelector('#herkules-export-panel input')
         expect(document.activeElement).toBe(input)
         expect(input?.getAttribute('aria-invalid')).toBe('true')
     })
 
-    it('adds one field, one CSV button per order and one panel, however often it runs, and loads each row once', async () => {
-        document.body.innerHTML = `<h1>Bestellungen</h1>${HISTORY_PAGE}`
+    it('adds one field, one CSV button per order, one column head and one panel, however often it runs, and loads each row once', async () => {
+        const head = '<div class="archiveTable__row archiveTable__header"><div class="archiveTable__actionLine"></div></div>'
+        document.body.innerHTML = `<h1>Bestellungen</h1>${head}${HISTORY_PAGE}`
         attachExport()
         attachExport()
-        expect([...document.querySelectorAll('.herkules-csv-btn')].map((b) => b.textContent)).toEqual(['CSV'])
+        expect([...document.querySelectorAll('.archiveTable__header .herkules-column')].map((l) => l.textContent)).toEqual(['Robotico · JTL-Export'])
+        expect([...document.querySelectorAll('.herkules-csv-btn')].map((b) => b.textContent)).toEqual(['CSV ↓'])
         expect(document.querySelectorAll('.herkules-order-field')).toHaveLength(1)
         expect(document.querySelector('.herkules-order-field')?.nextElementSibling?.className).toBe('herkules-csv-btn')
+        expect(document.querySelector('.herkules-export')?.getAttribute('title')).toBe('Robotico · JTL-Export')
+        expect(document.querySelector('button[name="view_document_card"]')?.nextElementSibling?.className).toBe('herkules-export')
         expect(document.querySelectorAll('#herkules-export-panel')).toHaveLength(1)
+        expect(document.querySelector('#herkules-export-panel label')?.textContent).toContain('Skonto-Wert')
         expect(document.querySelector('h1')?.previousElementSibling?.id).toBe('herkules-export-panel')
         await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     })

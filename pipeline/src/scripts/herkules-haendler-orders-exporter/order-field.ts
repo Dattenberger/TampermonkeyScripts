@@ -6,7 +6,10 @@ import { orderNumberOf, parseTypedOrderNumber } from './rows.js'
 
 export const ORDER_FIELD = 'herkules-order-field'
 const SUGGESTED = 'is-suggested'
-const INVALID_TEXT = 'Nicht gespeichert: D-BE und Ziffern, mit oder ohne -I.'
+/** Shown for a typed value that is no D-BE number; the export refuses it with the same words. */
+export const INVALID_TEXT = 'Keine gültige D-BE-Nummer.'
+/** The placeholder once the references are in: whatever they held, the user may type a number. */
+const TYPE_IT = 'D-BE eintragen'
 
 export interface OrderField {
     input: HTMLInputElement
@@ -28,8 +31,8 @@ export function createOrderField(portalOrder: string, onEdit: (problem?: string)
     input.setAttribute('aria-label', `D-BE-Nummer von Bestellung ${portalOrder}`)
     input.value = readOrderNumber(portalOrder)
 
-    let source: string | undefined = 'Referenz lädt …'
-    let placeholder = 'Referenz lädt …'
+    let source: string | undefined = 'Die Referenz aus Lieferschein und Rechnung lädt.'
+    let placeholder = 'lädt …'
     let pending = true
     let edited = Boolean(input.value)
     const describe = () => {
@@ -50,7 +53,7 @@ export function createOrderField(portalOrder: string, onEdit: (problem?: string)
         input.value = number
         input.removeAttribute('aria-invalid')
         writeOrderNumber(portalOrder, number)
-        placeholder = 'D-BE-Nummer'
+        placeholder = TYPE_IT
         describe()
         onEdit()
     }
@@ -83,7 +86,7 @@ export function createOrderField(portalOrder: string, onEdit: (problem?: string)
             // One order becomes one JTL order: with two numbers in it, only the user can say which one.
             const unique = numbers.length === 1 ? numbers[0] : undefined
             source = unique ? portal : `Referenz nicht erkannt. ${portal}`
-            placeholder = edited ? 'D-BE-Nummer' : 'Referenz nicht erkannt'
+            placeholder = TYPE_IT
             if (unique && !edited) {
                 input.value = unique
                 input.classList.add(SUGGESTED)
@@ -93,7 +96,7 @@ export function createOrderField(portalOrder: string, onEdit: (problem?: string)
         showLoadFailure: () => {
             pending = false
             source = 'Lieferschein oder Rechnung konnten nicht geladen werden. Seite neu laden.'
-            placeholder = edited ? 'D-BE-Nummer' : 'Referenz nicht geladen'
+            placeholder = TYPE_IT
             describe()
         },
         markInvalid: () => {
