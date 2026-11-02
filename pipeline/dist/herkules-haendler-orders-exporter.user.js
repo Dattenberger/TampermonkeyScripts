@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         HerkulesHaendlerOrdersExporter v1
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      0.1.1
+// @version      0.1.2
 // @author       Robotico
-// @description  Exportiert Bestellungen aus der Herkules-Händler-Dokumenthistorie als CSV im JTL-Format der Husqvarna-Exporter (und optional Artikel;Menge).
+// @description  Exportiert Bestellungen aus der Herkules-Händler-Dokumenthistorie als CSV im JTL-Format der Husqvarna-Exporter.
 // @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/herkules-haendler-orders-exporter.user.js
 // @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/pipeline/dist/herkules-haendler-orders-exporter.user.js
 // @match        https://www.herkules-haendler.de/garten/de/account/*
+// @grant        GM_addStyle
 // @grant        GM_addValueChangeListener
 // @grant        GM_getValue
-// @grant        GM_registerMenuCommand
 // @grant        GM_setValue
 // ==/UserScript==
 
@@ -29,45 +29,28 @@
 		const shown = Number.isFinite(value) ? Number(formatFactor(value).replace(",", ".")) : NaN;
 		return value > 0 && value <= 1 && shown > 0 ? value : null;
 	}
-	function askFactor(setting) {
-		const current = parseFactor(GM_getValue(setting.key));
-		for (;;) {
-			const input = globalThis.prompt(`${setting.label}\nWird nur lokal in Tampermonkey gespeichert.`, current === null ? "" : formatFactor(current));
-			if (input === null) return null;
-			const value = parseFactor(input);
-			if (value !== null) {
-				GM_setValue(setting.key, value);
-				return value;
-			}
-			globalThis.alert("Bitte eine Zahl größer 0 und höchstens 1 eingeben.");
-		}
+	function readFactor(setting) {
+		return parseFactor(GM_getValue(setting.key));
 	}
-	function getFactor(setting) {
-		return parseFactor(GM_getValue(setting.key)) ?? askFactor(setting);
-	}
-	function registerFactorMenu(setting, caption) {
-		GM_registerMenuCommand(caption, () => {
-			askFactor(setting);
+	function factorInput(setting) {
+		const input = document.createElement("input");
+		input.type = "text";
+		input.inputMode = "decimal";
+		input.autocomplete = "off";
+		const show = () => {
+			const value = readFactor(setting);
+			input.value = value === null ? "" : formatFactor(value);
+		};
+		show();
+		input.addEventListener("input", () => {
+			const value = parseFactor(input.value);
+			GM_setValue(setting.key, value);
+			input.setAttribute("aria-invalid", String(value === null));
 		});
-	}
-	function badgeText(setting) {
-		const value = parseFactor(GM_getValue(setting.key));
-		return value === null ? "Faktor fehlt · eingeben" : `Faktor ${formatFactor(value)} · ändern`;
-	}
-	function factorBadge(setting) {
-		const badge = document.createElement("button");
-		badge.type = "button";
-		badge.title = `${setting.label}\nWird nur lokal in Tampermonkey gespeichert.`;
-		badge.textContent = badgeText(setting);
-		badge.addEventListener("click", (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			askFactor(setting);
+		GM_addValueChangeListener(setting.key, (_key, _old, _new, remote) => {
+			if (remote) show();
 		});
-		GM_addValueChangeListener(setting.key, () => {
-			badge.textContent = badgeText(setting);
-		});
-		return badge;
+		return input;
 	}
 	var ROWS = ".modal .itemtable_list .itemtable_row";
 	function parseNumber(text) {
@@ -110,12 +93,38 @@
 	function parseOrderDate(doc) {
 		return /Datum:\s*(\d{2}\.\d{2}\.\d{4})/.exec(doc.querySelector(".modal")?.textContent ?? "")?.[1] ?? "";
 	}
+	var ORDER_NUMBERS_KEY = "herkulesOrderNumbers";
+	function readAll() {
+		return {
+			version: 1,
+			orders: GM_getValue("herkulesOrderNumbers")?.orders ?? {}
+		};
+	}
+	function readOrderNumber(portalOrder) {
+		return readAll().orders[portalOrder]?.orderNumber ?? "";
+	}
+	function writeOrderNumber(portalOrder, orderNumber) {
+		const all = readAll();
+		if (orderNumber) all.orders[portalOrder] = {
+			orderNumber,
+			updatedAt: new Date().toISOString()
+		};
+		else delete all.orders[portalOrder];
+		GM_setValue(ORDER_NUMBERS_KEY, all);
+	}
 	var SEPARATOR = ";";
 	var BOM = String.fromCodePoint(65279);
 	function group(text, regex) {
 		return regex.exec(text)?.[1] ?? "";
 	}
-	function toJtlRows(positions, orderNumber, deliveryDate, references, discountFactor) {
+	var ORDER_NUMBER = /^(D-BE\d+)(?:-I)?(?=\s|$)/i;
+	function orderNumberOf(reference) {
+		return ORDER_NUMBER.exec(reference.trim())?.[1].toUpperCase() ?? "";
+	}
+	function parseTypedOrderNumber(input) {
+		return /^D-BE\d+(?:-I)?$/i.test(input.trim()) ? orderNumberOf(input) : null;
+	}
+	function toJtlRows(positions, orderNumber, deliveryDate, references, discountFactor, orderNumberInJtl) {
 		return positions.map((p) => {
 			const reference = references.get(p.articleNumber) ?? "";
 			const parsedVpe = Number.parseInt(group(reference, /^D-BE\S*\s*VPE=(\d+)/), 10);
@@ -124,7 +133,7 @@
 			const price = Number.isFinite(p.unitPrice) && quantity > 0 ? p.unitPrice * p.quantity * discountFactor / quantity : NaN;
 			return {
 				HAN: p.articleNumber,
-				"Interne Bestellnummer": group(reference, /^(D-BE\S*)/).slice(0, 14),
+				"Interne Bestellnummer": orderNumberInJtl && `${orderNumberInJtl}-I`,
 				Artikelnummer: group(reference, /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/),
 				Lieferantenbezeichnung: p.name,
 				menge: Number.isFinite(quantity) ? quantity : "",
@@ -134,12 +143,6 @@
 				Fremdbelegnummer: orderNumber
 			};
 		});
-	}
-	function toArticleQuantityRows(positions) {
-		return positions.map((p) => ({
-			Artikel: p.articleNumber,
-			Menge: Number.isFinite(p.quantity) ? p.quantity : ""
-		}));
 	}
 	function csvField(value) {
 		const text = value == null ? "" : String(value);
@@ -159,6 +162,180 @@
 		link.click();
 		link.remove();
 		setTimeout(() => URL.revokeObjectURL(url), 1e4);
+	}
+	var ORDER_FIELD = "herkules-order-field";
+	var SUGGESTED = "is-suggested";
+	var INVALID_TEXT = "Nicht gespeichert: D-BE und Ziffern, mit oder ohne -I.";
+	function createOrderField(portalOrder, onEdit) {
+		const input = document.createElement("input");
+		input.type = "text";
+		input.autocomplete = "off";
+		input.className = ORDER_FIELD;
+		input.setAttribute("aria-label", `D-BE-Nummer von Bestellung ${portalOrder}`);
+		input.value = readOrderNumber(portalOrder);
+		let source = "Referenz lädt …";
+		let placeholder = "Referenz lädt …";
+		let pending = true;
+		let edited = Boolean(input.value);
+		const describe = () => {
+			input.title = `${edited && input.value ? "Von Hand eingetragen. " : ""}${source ?? ""}`;
+			input.placeholder = placeholder;
+		};
+		describe();
+		const commit = () => {
+			const value = input.value.trim();
+			const number = value ? parseTypedOrderNumber(value) : "";
+			if (number === null) {
+				input.setAttribute("aria-invalid", "true");
+				onEdit(INVALID_TEXT);
+				return;
+			}
+			input.value = number;
+			input.removeAttribute("aria-invalid");
+			writeOrderNumber(portalOrder, number);
+			placeholder = "D-BE-Nummer";
+			describe();
+			onEdit();
+		};
+		input.addEventListener("input", () => {
+			edited = true;
+			input.classList.remove(SUGGESTED);
+			input.removeAttribute("aria-invalid");
+		});
+		input.addEventListener("change", commit);
+		input.addEventListener("keydown", (event) => {
+			if (event.key !== "Enter") return;
+			event.preventDefault();
+			commit();
+		});
+		input.addEventListener("click", (event) => event.stopPropagation());
+		return {
+			input,
+			pending: () => pending,
+			read: () => {
+				const value = input.value.trim();
+				return value ? parseTypedOrderNumber(value) : "";
+			},
+			showReferences: (references) => {
+				pending = false;
+				const texts = [...new Set(references.values())];
+				const numbers = [...new Set(texts.map((text) => orderNumberOf(text)).filter(Boolean))];
+				const portal = texts.length > 0 ? `„Ihre Referenz“ im Portal: ${texts.join(" · ")}` : "In Lieferschein und Rechnung steht keine „Ihre Referenz“.";
+				const unique = numbers.length === 1 ? numbers[0] : void 0;
+				source = unique ? portal : `Referenz nicht erkannt. ${portal}`;
+				placeholder = edited ? "D-BE-Nummer" : "Referenz nicht erkannt";
+				if (unique && !edited) {
+					input.value = unique;
+					input.classList.add(SUGGESTED);
+				}
+				describe();
+			},
+			showLoadFailure: () => {
+				pending = false;
+				source = "Lieferschein oder Rechnung konnten nicht geladen werden. Seite neu laden.";
+				placeholder = edited ? "D-BE-Nummer" : "Referenz nicht geladen";
+				describe();
+			},
+			markInvalid: () => {
+				input.setAttribute("aria-invalid", "true");
+				input.focus({ preventScroll: true });
+			}
+		};
+	}
+	var CSV_BUTTON = "herkules-csv-btn";
+	var STATUS = "herkules-status";
+	var PANEL_ID = "herkules-export-panel";
+	var BUTTON_TITLE = "CSV dieser Bestellung für den JTL-Import herunterladen";
+	var CSS = `
+    button.${CSV_BUTTON} {
+        display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+        min-width: 78px; min-height: 26px; margin-left: 12px; padding: 4px 12px;
+        border: 1px solid #3d3d3c; border-radius: 6px;
+        background: #fff; color: #3d3d3c;
+        font: 600 12px/16px Arial, sans-serif; letter-spacing: .03em; text-transform: uppercase;
+        cursor: pointer; transition: background-color .15s ease, color .15s ease;
+    }
+    button.${CSV_BUTTON}:hover { background: #3d3d3c; color: #fff; }
+    button.${CSV_BUTTON}:focus-visible, #${PANEL_ID} input:focus-visible { outline: 2px solid #3d3d3c; outline-offset: 2px; }
+    button.${CSV_BUTTON}.is-loading { background: #6f6f6f; border-color: #6f6f6f; color: #fff; cursor: progress; }
+    button.${CSV_BUTTON}.is-success { background: #1e7e34; border-color: #1e7e34; color: #fff; }
+    button.${CSV_BUTTON}.is-error { background: #dc3545; border-color: #dc3545; color: #fff; }
+    button.${CSV_BUTTON}.is-success:hover { background: #155d27; border-color: #155d27; }
+    button.${CSV_BUTTON}.is-error:hover { background: #bd2130; border-color: #bd2130; }
+    .${STATUS} { display: block; width: 300px; max-width: 100%; margin: 4px 0 0 auto; color: #b02a37; font: 12px/16px Arial, sans-serif; text-align: right; }
+    .${STATUS}:empty { display: none; }
+    .${STATUS}.is-info { color: #6f6f6f; }
+    input.${ORDER_FIELD} {
+        box-sizing: border-box; width: 150px; min-height: 26px; margin-left: 12px; padding: 3px 7px; vertical-align: middle;
+        border: 1px solid #bbb; border-radius: 6px; background: #fff; color: #3d3d3c; font: 13px/18px Arial, sans-serif;
+    }
+    input.${ORDER_FIELD}::placeholder { color: #8a8a8a; font-style: italic; }
+    input.${ORDER_FIELD}.is-suggested { color: #767676; }
+    input.${ORDER_FIELD}:focus-visible { outline: 2px solid #3d3d3c; outline-offset: 1px; }
+    input.${ORDER_FIELD}[aria-invalid='true'] { border-color: #dc3545; background: #fff5f5; }
+    #${PANEL_ID} {
+        float: right; box-sizing: border-box; width: 190px; margin: 0 0 12px 24px; padding: 12px 14px;
+        background: #fff; border: 1px solid #e0e0e0; border-radius: 8px;
+        color: #3d3d3c; font: 13px/18px Arial, sans-serif;
+    }
+    #${PANEL_ID}.is-floating { float: none; position: fixed; right: 16px; bottom: 16px; z-index: 1000; margin: 0; box-shadow: 0 2px 10px rgba(0, 0, 0, .12); }
+    #${PANEL_ID} .herkules-panel-title { margin: 0 0 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; font-size: 12px; }
+    #${PANEL_ID} label { display: block; font-weight: 600; }
+    #${PANEL_ID} input {
+        box-sizing: border-box; width: 100%; margin: 4px 0 6px; padding: 6px 8px;
+        border: 1px solid #bbb; border-radius: 6px; font: 14px/18px Arial, sans-serif;
+    }
+    #${PANEL_ID} input[aria-invalid='true'] { border-color: #dc3545; background: #fff5f5; }
+    #${PANEL_ID} small { display: block; color: #6f6f6f; font-size: 11px; line-height: 14px; }
+    @media (max-width: 880px) { #${PANEL_ID}:not(.is-floating) { float: none; width: auto; margin: 0 0 12px; } }
+`;
+	var BUTTON_TEXT = {
+		idle: "CSV",
+		loading: "Lädt …",
+		success: "✓ CSV",
+		error: "✗ CSV"
+	};
+	function setButtonState(button, state, status, detail) {
+		button.textContent = BUTTON_TEXT[state];
+		button.disabled = state === "loading";
+		for (const name of [
+			"is-loading",
+			"is-success",
+			"is-error"
+		]) button.classList.remove(name);
+		if (state !== "idle") button.classList.add(`is-${state}`);
+		button.title = detail ?? BUTTON_TITLE;
+		status.textContent = detail ?? "";
+		status.classList.toggle("is-info", state === "success");
+	}
+	function attachPanel(setting) {
+		if (document.querySelector(`#${PANEL_ID}`)) return;
+		GM_addStyle(CSS);
+		const panel = document.createElement("aside");
+		panel.id = PANEL_ID;
+		const title = document.createElement("p");
+		title.className = "herkules-panel-title";
+		title.textContent = "CSV-Export";
+		const label = document.createElement("label");
+		label.textContent = "Skonto-Faktor";
+		label.title = setting.label;
+		const input = factorInput(setting);
+		input.placeholder = "Faktor eintragen";
+		label.append(input);
+		const hint = document.createElement("small");
+		hint.textContent = "Faktor auf den Netto-Händlerpreis. Nur lokal in diesem Browser gespeichert.";
+		panel.append(title, label, hint);
+		const heading = document.querySelector("h1");
+		if (heading) heading.before(panel);
+		else {
+			panel.classList.add("is-floating");
+			document.body.append(panel);
+		}
+	}
+	function focusFactor() {
+		const input = document.querySelector(`#${PANEL_ID} input`);
+		input?.setAttribute("aria-invalid", "true");
+		input?.focus({ preventScroll: true });
 	}
 	var DISCOUNT_FACTOR = {
 		key: "herkulesDiscountFactor",
@@ -191,56 +368,127 @@
 		for (const form of relatedForms(orderForm)) for (const [article, reference] of parseReferences(await fetchDocument(form))) if (!references.has(article)) references.set(article, reference);
 		return references;
 	}
-	async function exportOrder(form, button, format) {
+	var loadedReferences = new WeakMap();
+	function referencesOf(form) {
+		const known = loadedReferences.get(form);
+		if (known) return known;
+		const loading = fetchReferences(form);
+		loadedReferences.set(form, loading);
+		loading.catch(() => loadedReferences.delete(form));
+		return loading;
+	}
+	function exportValues({ button, status, field }, allowEmpty) {
+		const fail = (reason) => {
+			setButtonState(button, "error", status, reason);
+			return null;
+		};
+		const orderNumberInJtl = field.read();
+		if (orderNumberInJtl === null || orderNumberInJtl === "" && !allowEmpty && !field.pending()) {
+			field.markInvalid();
+			return fail(orderNumberInJtl === null ? "Keine D-BE-Nummer: D-BE und Ziffern, mit oder ohne -I." : "D-BE-Nummer fehlt. Eintragen, oder Doppelklick auf CSV: Export ohne Nummer, JTL legt eine neue an.");
+		}
+		if (orderNumberInJtl === "" && field.pending()) return fail("Die Referenz lädt noch. Gleich noch einmal klicken.");
+		const discountFactor = readFactor(DISCOUNT_FACTOR);
+		if (discountFactor === null) {
+			focusFactor();
+			return fail("Skonto-Faktor fehlt: bitte oben rechts im Feld „Skonto-Faktor“ eintragen.");
+		}
+		return {
+			orderNumberInJtl,
+			discountFactor
+		};
+	}
+	async function exportOrder(row, allowEmpty = false) {
+		const { form, button, status } = row;
 		const orderNumber = field(form, "document_no") ?? "";
-		const label = (button.textContent ?? "").replace(/^[✓✗] /, "");
-		button.disabled = true;
+		if (!exportValues(row, allowEmpty)) return;
+		setButtonState(button, "loading", status);
 		try {
-			const discountFactor = format === "jtl" ? getFactor(DISCOUNT_FACTOR) : 1;
-			if (discountFactor === null) throw new Error("Export abgebrochen: kein Skonto-Faktor hinterlegt");
-			button.textContent = "Lädt…";
 			const doc = await fetchDocument(form);
 			const positions = parsePositions(doc);
 			if (positions.length === 0) throw new Error("keine Positionen gefunden");
-			downloadCsv(toCsv(format === "jtl" ? toJtlRows(positions, orderNumber, parseOrderDate(doc), await fetchReferences(form), discountFactor) : toArticleQuantityRows(positions)), `herkules-${orderNumber}${format === "jtl" ? "" : "-artikel-menge"}.csv`);
-			button.textContent = `✓ ${label}`;
+			const references = await referencesOf(form);
+			const values = exportValues(row, allowEmpty);
+			if (!values) return;
+			downloadCsv(toCsv(toJtlRows(positions, orderNumber, parseOrderDate(doc), references, values.discountFactor, values.orderNumberInJtl)), `herkules-${orderNumber}.csv`);
+			setButtonState(button, "success", status, values.orderNumberInJtl ? `Heruntergeladen mit ${values.orderNumberInJtl}-I` : "Heruntergeladen ohne Nummer: JTL legt eine neue an.");
+			row.field.input.removeAttribute("aria-invalid");
 		} catch (error) {
 			console.error("[HerkulesExporter]", orderNumber, error);
-			button.textContent = `✗ ${label}`;
-			button.title = error instanceof Error ? error.message : String(error);
-		} finally {
-			button.disabled = false;
+			setButtonState(button, "error", status, error instanceof Error ? error.message : String(error));
 		}
 	}
-	function styled(element, className) {
-		element.className = `buttonLink ${className}`;
-		element.style.marginLeft = "12px";
-		return element;
+	function makeStatus() {
+		const status = document.createElement("span");
+		status.className = STATUS;
+		status.setAttribute("role", "status");
+		return status;
 	}
-	function makeButton(form, text, title, format) {
-		const button = styled(document.createElement("button"), "herkules-export-btn");
+	function makeRow(form) {
+		const orderNumber = field(form, "document_no") ?? "";
+		const status = makeStatus();
+		const button = document.createElement("button");
+		const orderField = createOrderField(orderNumber, (problem) => {
+			if (!button.disabled) setButtonState(button, "idle", status, problem);
+		});
+		const row = {
+			form,
+			button,
+			status,
+			field: orderField
+		};
 		button.type = "button";
-		button.textContent = text;
-		button.title = title;
+		button.className = CSV_BUTTON;
+		button.setAttribute("aria-label", `CSV für Bestellung ${orderNumber}`);
 		button.addEventListener("click", (event) => {
 			event.preventDefault();
 			event.stopPropagation();
-			exportOrder(form, button, format);
+			if (event.detail < 2) exportOrder(row);
 		});
-		return button;
+		button.addEventListener("dblclick", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (orderField.read() === "") exportOrder(row, true);
+		});
+		setButtonState(button, "idle", status);
+		return row;
 	}
-	function attachButtons() {
+	var REFERENCE_REQUESTS = 2;
+	var referenceQueue = [];
+	var referenceWorkers = 0;
+	async function runReferenceQueue() {
+		if (referenceWorkers >= REFERENCE_REQUESTS) return;
+		referenceWorkers += 1;
+		for (let job = referenceQueue.shift(); job; job = referenceQueue.shift()) await job();
+		referenceWorkers -= 1;
+	}
+	function queueReferences({ form, field: orderField }) {
+		referenceQueue.push(async () => {
+			try {
+				orderField.showReferences(await referencesOf(form));
+			} catch (error) {
+				console.error("[HerkulesExporter]", field(form, "document_no"), error);
+				orderField.showLoadFailure();
+			}
+		});
+	}
+	function attachExport() {
+		attachPanel(DISCOUNT_FACTOR);
+		let added = 0;
 		for (const form of document.querySelectorAll("form[action*=\"webshop_document_history\"]")) {
 			const details = form.querySelector("button[name=\"view_document_card\"]");
 			if (field(form, "document_type") !== "order" || form.dataset.herkulesExport || !details) continue;
 			form.dataset.herkulesExport = "1";
-			details.after(makeButton(form, "CSV", "Export CSV für JTL (gleiches Format wie Husqvarna-Exporter)", "jtl"), styled(factorBadge(DISCOUNT_FACTOR), "herkules-factor-btn"), makeButton(form, "Artikel;Menge", "Export Artikel;Menge (Reimport)", "artikel-menge"));
+			const row = makeRow(form);
+			details.after(row.field.input, row.button, row.status);
+			queueReferences(row);
+			added += 1;
 		}
+		for (let i = 0; i < Math.min(added, REFERENCE_REQUESTS); i += 1) runReferenceQueue();
 	}
-	registerFactorMenu(DISCOUNT_FACTOR, "Skonto-Faktor ändern");
 	if (/action=webshop_document_history/.test(globalThis.location.search)) {
-		attachButtons();
-		new MutationObserver(() => attachButtons()).observe(document.body, {
+		attachExport();
+		new MutationObserver(() => attachExport()).observe(document.body, {
 			childList: true,
 			subtree: true
 		});

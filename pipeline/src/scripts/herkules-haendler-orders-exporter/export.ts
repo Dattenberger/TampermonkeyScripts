@@ -3,11 +3,11 @@
 // the answer is the whole page with the document as a modal. The flow repeats that POST with
 // fetch, parses the modal and builds the CSV in the browser.
 
-import { factorBadge, getFactor, type FactorSetting } from '@lib/settings'
+import { readFactor, type FactorSetting } from '@lib/settings'
 import { parseOrderDate, parsePositions, parseReferences } from './parse.js'
-import { downloadCsv, toArticleQuantityRows, toCsv, toJtlRows } from './rows.js'
-
-export type ExportFormat = 'jtl' | 'artikel-menge'
+import { createOrderField, type OrderField } from './order-field.js'
+import { downloadCsv, toCsv, toJtlRows } from './rows.js'
+import { attachPanel, CSV_BUTTON, focusFactor, setButtonState, STATUS } from './ui.js'
 
 /** Discount factor per the supplier's terms: a local setting, never a value in this public code. */
 export const DISCOUNT_FACTOR: FactorSetting = {
@@ -48,63 +48,144 @@ async function fetchReferences(orderForm: HTMLFormElement): Promise<Map<string, 
     return references
 }
 
-export async function exportOrder(form: HTMLFormElement, button: HTMLButtonElement, format: ExportFormat): Promise<void> {
+const loadedReferences = new WeakMap<HTMLFormElement, Promise<Map<string, string>>>()
+
+/** One request chain per row, shared by the field and the export; a failure is tried again by the next caller. */
+function referencesOf(form: HTMLFormElement): Promise<Map<string, string>> {
+    const known = loadedReferences.get(form)
+    if (known) return known
+    const loading = fetchReferences(form)
+    loadedReferences.set(form, loading)
+    loading.catch(() => loadedReferences.delete(form))
+    return loading
+}
+
+interface OrderRow {
+    form: HTMLFormElement
+    button: HTMLButtonElement
+    status: HTMLElement
+    field: OrderField
+}
+
+/** The values as the fields show them now; on a problem, says so in the row and returns null. */
+function exportValues({ button, status, field }: OrderRow, allowEmpty: boolean): { orderNumberInJtl: string; discountFactor: number } | null {
+    const fail = (reason: string) => {
+        setButtonState(button, 'error', status, reason)
+        return null
+    }
+    const orderNumberInJtl = field.read()
+    if (orderNumberInJtl === null || (orderNumberInJtl === '' && !allowEmpty && !field.pending())) {
+        field.markInvalid()
+        return fail(
+            orderNumberInJtl === null
+                ? 'Keine D-BE-Nummer: D-BE und Ziffern, mit oder ohne -I.'
+                : 'D-BE-Nummer fehlt. Eintragen, oder Doppelklick auf CSV: Export ohne Nummer, JTL legt eine neue an.',
+        )
+    }
+    if (orderNumberInJtl === '' && field.pending()) return fail('Die Referenz lädt noch. Gleich noch einmal klicken.')
+    const discountFactor = readFactor(DISCOUNT_FACTOR)
+    if (discountFactor === null) {
+        focusFactor()
+        return fail('Skonto-Faktor fehlt: bitte oben rechts im Feld „Skonto-Faktor“ eintragen.')
+    }
+    return { orderNumberInJtl, discountFactor }
+}
+
+/** Exports with what the fields show; `allowEmpty` is the double click that asks for a new number in JTL. */
+async function exportOrder(row: OrderRow, allowEmpty = false): Promise<void> {
+    const { form, button, status } = row
     const orderNumber = field(form, 'document_no') ?? ''
-    const label = (button.textContent ?? '').replace(/^[✓✗] /, '')
-    button.disabled = true
+    if (!exportValues(row, allowEmpty)) return
+    setButtonState(button, 'loading', status)
     try {
-        // Asked before loading so the prompt is not interrupted by the network round trips.
-        const discountFactor = format === 'jtl' ? getFactor(DISCOUNT_FACTOR) : 1
-        if (discountFactor === null) throw new Error('Export abgebrochen: kein Skonto-Faktor hinterlegt')
-        button.textContent = 'Lädt…'
         const doc = await fetchDocument(form)
         const positions = parsePositions(doc)
         if (positions.length === 0) throw new Error('keine Positionen gefunden')
-        const rows = format === 'jtl'
-            ? toJtlRows(positions, orderNumber, parseOrderDate(doc), await fetchReferences(form), discountFactor)
-            : toArticleQuantityRows(positions)
-        downloadCsv(toCsv(rows), `herkules-${orderNumber}${format === 'jtl' ? '' : '-artikel-menge'}.csv`)
-        button.textContent = `✓ ${label}`
+        const references = await referencesOf(form)
+        // Both fields stay editable while the documents load: what they show now is what applies.
+        const values = exportValues(row, allowEmpty)
+        if (!values) return
+        const rows = toJtlRows(positions, orderNumber, parseOrderDate(doc), references, values.discountFactor, values.orderNumberInJtl)
+        downloadCsv(toCsv(rows), `herkules-${orderNumber}.csv`)
+        const result = values.orderNumberInJtl ? `Heruntergeladen mit ${values.orderNumberInJtl}-I` : 'Heruntergeladen ohne Nummer: JTL legt eine neue an.'
+        setButtonState(button, 'success', status, result)
+        // The double click accepted the empty field the first click had marked.
+        row.field.input.removeAttribute('aria-invalid')
     } catch (error) {
         console.error('[HerkulesExporter]', orderNumber, error)
-        button.textContent = `✗ ${label}`
-        button.title = error instanceof Error ? error.message : String(error)
-    } finally {
-        button.disabled = false
+        setButtonState(button, 'error', status, error instanceof Error ? error.message : String(error))
     }
 }
 
-/** The portal's link-button look, spaced from its left neighbour. */
-function styled<T extends HTMLElement>(element: T, className: string): T {
-    element.className = `buttonLink ${className}`
-    element.style.marginLeft = '12px'
-    return element
+function makeStatus(): HTMLElement {
+    const status = document.createElement('span')
+    status.className = STATUS
+    status.setAttribute('role', 'status')
+    return status
 }
 
-function makeButton(form: HTMLFormElement, text: string, title: string, format: ExportFormat): HTMLButtonElement {
-    const button = styled(document.createElement('button'), 'herkules-export-btn')
+function makeRow(form: HTMLFormElement): OrderRow {
+    const orderNumber = field(form, 'document_no') ?? ''
+    const status = makeStatus()
+    const button = document.createElement('button')
+    // During an export the button stays locked: that run reads the field again before it writes the file.
+    const orderField = createOrderField(orderNumber, (problem) => {
+        if (!button.disabled) setButtonState(button, 'idle', status, problem)
+    })
+    const row: OrderRow = { form, button, status, field: orderField }
     button.type = 'button'
-    button.textContent = text
-    button.title = title
+    button.className = CSV_BUTTON
+    button.setAttribute('aria-label', `CSV für Bestellung ${orderNumber}`)
     button.addEventListener('click', (event) => {
         event.preventDefault()
         event.stopPropagation()
-        void exportOrder(form, button, format)
+        // The second click of a double click is the dblclick's business, never a second file.
+        if (event.detail < 2) void exportOrder(row)
     })
-    return button
+    button.addEventListener('dblclick', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        if (orderField.read() === '') void exportOrder(row, true)
+    })
+    setButtonState(button, 'idle', status)
+    return row
 }
 
-/** Adds the two export buttons after "Details" of every order row, once per form, and beside the
- *  CSV button the discount factor it applies, changeable with one click. */
-export function attachButtons(): void {
+const REFERENCE_REQUESTS = 2
+const referenceQueue: (() => Promise<void>)[] = []
+let referenceWorkers = 0
+
+/** Works through the rows of a page with few requests at a time: the portal is a shop, not an API. */
+async function runReferenceQueue(): Promise<void> {
+    if (referenceWorkers >= REFERENCE_REQUESTS) return
+    referenceWorkers += 1
+    for (let job = referenceQueue.shift(); job; job = referenceQueue.shift()) await job()
+    referenceWorkers -= 1
+}
+
+function queueReferences({ form, field: orderField }: OrderRow): void {
+    referenceQueue.push(async () => {
+        try {
+            orderField.showReferences(await referencesOf(form))
+        } catch (error) {
+            console.error('[HerkulesExporter]', field(form, 'document_no'), error)
+            orderField.showLoadFailure()
+        }
+    })
+}
+
+/** Adds the panel once, and to every order row, once per form, our number's field and the CSV button after "Details". */
+export function attachExport(): void {
+    attachPanel(DISCOUNT_FACTOR)
+    let added = 0
     for (const form of document.querySelectorAll<HTMLFormElement>('form[action*="webshop_document_history"]')) {
         const details = form.querySelector('button[name="view_document_card"]')
         if (field(form, 'document_type') !== 'order' || form.dataset.herkulesExport || !details) continue
         form.dataset.herkulesExport = '1'
-        details.after(
-            makeButton(form, 'CSV', 'Export CSV für JTL (gleiches Format wie Husqvarna-Exporter)', 'jtl'),
-            styled(factorBadge(DISCOUNT_FACTOR), 'herkules-factor-btn'),
-            makeButton(form, 'Artikel;Menge', 'Export Artikel;Menge (Reimport)', 'artikel-menge'),
-        )
+        const row = makeRow(form)
+        details.after(row.field.input, row.button, row.status)
+        queueReferences(row)
+        added += 1
     }
+    for (let i = 0; i < Math.min(added, REFERENCE_REQUESTS); i += 1) void runReferenceQueue()
 }
