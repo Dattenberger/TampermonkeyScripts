@@ -25,6 +25,11 @@ describe('herkules export rows', () => {
         expect(second).toMatchObject({ 'Interne Bestellnummer': 'D-BE00000012-I', Artikelnummer: '', menge: '', 'EK netto': '' })
     })
 
+    it('leaves the order number empty when the user exports without one, so JTL assigns a new one', () => {
+        const [row] = toJtlRows(positions.slice(0, 1), 'AB-0001', '', new Map(), 1, '')
+        expect(row).toMatchObject({ 'Interne Bestellnummer': '', Fremdbelegnummer: 'AB-0001' })
+    })
+
     it('treats a reference without VPE as one piece per unit', () => {
         const [row] = toJtlRows(positions.slice(0, 1), 'AB-0001', '', new Map([['ART-0001', 'D-BE0000001 ART-X1']]), 1, 'D-BE0000001')
         expect(row).toMatchObject({ menge: 2, Artikelnummer: 'ART-X1', 'EK netto': '12,3400' })

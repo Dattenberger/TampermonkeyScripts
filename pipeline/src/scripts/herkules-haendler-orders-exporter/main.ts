@@ -1,6 +1,7 @@
 // Herkules dealer portal orders exporter: in the document history, one CSV button per order in the
-// JTL format of the Husqvarna exporters. The button asks for our D-BE number, since the portal has no
-// field for it; a panel on the right holds the discount factor as a local setting (@lib/settings).
+// JTL format of the Husqvarna exporters. Beside it a field for our D-BE number, since the portal has
+// none: filled from the order's references where they hold one, else typed and kept locally. A panel
+// on the right holds the discount factor as a local setting (@lib/settings).
 
 import { attachExport } from './export.js'
 

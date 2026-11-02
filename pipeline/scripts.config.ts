@@ -78,7 +78,7 @@ export const scripts: Record<string, ScriptConfig> = {
     'herkules-haendler-orders-exporter': {
         entry: 'src/scripts/herkules-haendler-orders-exporter/main.ts',
         outputFileName: 'herkules-haendler-orders-exporter.user.js',
-        settings: ['herkulesDiscountFactor'],
+        settings: ['herkulesDiscountFactor', 'herkulesOrderNumbers'],
         userscript: {
             name: 'HerkulesHaendlerOrdersExporter v1',
             namespace: 'https://github.com/Dattenberger/TampermonkeyScripts',

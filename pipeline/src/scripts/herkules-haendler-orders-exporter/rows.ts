@@ -26,7 +26,8 @@ export function parseTypedOrderNumber(input: string): string | null {
 /**
  * Same columns and order as the Husqvarna portal orders exporter (JTL purchase-order import).
  * The reference follows the same conventions as there: "D-BE<nr> [VPE=<n>] [<our article no>]".
- * `orderNumber` is the original JTL order the user named; a reimported order is D-BE<nr>-I in JTL.
+ * `orderNumberInJtl` is the original JTL order; a reimported order is D-BE<nr>-I in JTL. Empty stays
+ * empty, and JTL gives the imported order a new number.
  */
 export function toJtlRows(
     positions: Position[],
@@ -44,7 +45,7 @@ export function toJtlRows(
         const price = Number.isFinite(p.unitPrice) && quantity > 0 ? (p.unitPrice * p.quantity * discountFactor) / quantity : Number.NaN
         return {
             HAN: p.articleNumber,
-            'Interne Bestellnummer': `${orderNumberInJtl}-I`,
+            'Interne Bestellnummer': orderNumberInJtl && `${orderNumberInJtl}-I`,
             Artikelnummer: group(reference, /^D-BE\S*\s*(?:VPE=\d*)?\s*(\S*)/),
             Lieferantenbezeichnung: p.name,
             menge: Number.isFinite(quantity) ? quantity : '',
