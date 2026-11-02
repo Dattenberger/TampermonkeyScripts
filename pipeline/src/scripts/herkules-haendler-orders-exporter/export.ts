@@ -126,7 +126,10 @@ function makeRow(form: HTMLFormElement): OrderRow {
     const orderNumber = field(form, 'document_no') ?? ''
     const status = makeStatus()
     const button = document.createElement('button')
-    const orderField = createOrderField(orderNumber, (problem) => setButtonState(button, 'idle', status, problem))
+    // During an export the button stays locked: that run reads the field again before it writes the file.
+    const orderField = createOrderField(orderNumber, (problem) => {
+        if (!button.disabled) setButtonState(button, 'idle', status, problem)
+    })
     const row: OrderRow = { form, button, status, field: orderField }
     button.type = 'button'
     button.className = CSV_BUTTON

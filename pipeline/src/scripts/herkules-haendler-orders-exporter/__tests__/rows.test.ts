@@ -45,6 +45,7 @@ describe('herkules export rows', () => {
         expect(orderNumberOf('D-BE00000012 VPE=3 ART-X1')).toBe('D-BE00000012')
         expect(orderNumberOf('D-BE00000012-I')).toBe('D-BE00000012')
         expect(orderNumberOf('Kunde D-BE1')).toBe('')
+        for (const malformed of ['D-BE123X', 'D-BE123-2', 'D-BE123-I-2']) expect(orderNumberOf(malformed)).toBe('')
     })
 
     it('quotes CSV fields only when needed and joins with semicolons and CRLF', () => {

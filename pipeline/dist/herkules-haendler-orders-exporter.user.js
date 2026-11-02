@@ -117,9 +117,9 @@
 	function group(text, regex) {
 		return regex.exec(text)?.[1] ?? "";
 	}
-	var ORDER_NUMBER = /^D-BE\d+/i;
+	var ORDER_NUMBER = /^(D-BE\d+)(?:-I)?(?=\s|$)/i;
 	function orderNumberOf(reference) {
-		return ORDER_NUMBER.exec(reference.trim())?.[0].toUpperCase() ?? "";
+		return ORDER_NUMBER.exec(reference.trim())?.[1].toUpperCase() ?? "";
 	}
 	function parseTypedOrderNumber(input) {
 		return /^D-BE\d+(?:-I)?$/i.test(input.trim()) ? orderNumberOf(input) : null;
@@ -427,7 +427,9 @@
 		const orderNumber = field(form, "document_no") ?? "";
 		const status = makeStatus();
 		const button = document.createElement("button");
-		const orderField = createOrderField(orderNumber, (problem) => setButtonState(button, "idle", status, problem));
+		const orderField = createOrderField(orderNumber, (problem) => {
+			if (!button.disabled) setButtonState(button, "idle", status, problem);
+		});
 		const row = {
 			form,
 			button,

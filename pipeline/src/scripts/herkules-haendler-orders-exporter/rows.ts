@@ -11,11 +11,11 @@ function group(text: string, regex: RegExp): string {
     return regex.exec(text)?.[1] ?? ''
 }
 
-const ORDER_NUMBER = /^D-BE\d+/i
+const ORDER_NUMBER = /^(D-BE\d+)(?:-I)?(?=\s|$)/i
 
-/** Our order number at the start of a reference, as JTL writes it; '' without one. */
+/** Our order number without -I when a reference's first word is exactly that (D-BE123X is not); '' otherwise. */
 export function orderNumberOf(reference: string): string {
-    return ORDER_NUMBER.exec(reference.trim())?.[0].toUpperCase() ?? ''
+    return ORDER_NUMBER.exec(reference.trim())?.[1]!.toUpperCase() ?? ''
 }
 
 /** The number the user typed for an export: D-BE… with or without -I; null for anything else. */

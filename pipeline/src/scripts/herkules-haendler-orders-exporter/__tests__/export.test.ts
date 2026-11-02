@@ -194,6 +194,17 @@ describe('herkules export', () => {
         expect(status.textContent).toContain('Skonto-Faktor fehlt')
     })
 
+    it('editing the number during an export does not free the button for a second file', async () => {
+        const { input, button } = await loadRow()
+        button.click()
+        expect(button.disabled).toBe(true)
+        type(input, 'D-BE0000007')
+        expect(button.disabled).toBe(true)
+        button.click()
+        await vi.waitFor(() => expect(button.textContent).toBe('✓ CSV'))
+        expect(createObjectURL).toHaveBeenCalledTimes(1)
+    })
+
     it('without a stored factor loads no order, says why in the row and takes the user to the field', async () => {
         GM_setValue(DISCOUNT_FACTOR.key, undefined)
         const { button, status } = await loadRow()
