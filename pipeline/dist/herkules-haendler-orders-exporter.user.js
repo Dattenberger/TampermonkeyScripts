@@ -412,6 +412,7 @@
 			if (!values) return;
 			downloadCsv(toCsv(toJtlRows(positions, orderNumber, parseOrderDate(doc), references, values.discountFactor, values.orderNumberInJtl)), `herkules-${orderNumber}.csv`);
 			setButtonState(button, "success", status, values.orderNumberInJtl ? `Heruntergeladen mit ${values.orderNumberInJtl}-I` : "Heruntergeladen ohne Nummer: JTL legt eine neue an.");
+			row.field.input.removeAttribute("aria-invalid");
 		} catch (error) {
 			console.error("[HerkulesExporter]", orderNumber, error);
 			setButtonState(button, "error", status, error instanceof Error ? error.message : String(error));

@@ -92,7 +92,7 @@ function exportValues({ button, status, field }: OrderRow, allowEmpty: boolean):
 }
 
 /** Exports with what the fields show; `allowEmpty` is the double click that asks for a new number in JTL. */
-export async function exportOrder(row: OrderRow, allowEmpty = false): Promise<void> {
+async function exportOrder(row: OrderRow, allowEmpty = false): Promise<void> {
     const { form, button, status } = row
     const orderNumber = field(form, 'document_no') ?? ''
     if (!exportValues(row, allowEmpty)) return
@@ -109,6 +109,8 @@ export async function exportOrder(row: OrderRow, allowEmpty = false): Promise<vo
         downloadCsv(toCsv(rows), `herkules-${orderNumber}.csv`)
         const result = values.orderNumberInJtl ? `Heruntergeladen mit ${values.orderNumberInJtl}-I` : 'Heruntergeladen ohne Nummer: JTL legt eine neue an.'
         setButtonState(button, 'success', status, result)
+        // The double click accepted the empty field the first click had marked.
+        row.field.input.removeAttribute('aria-invalid')
     } catch (error) {
         console.error('[HerkulesExporter]', orderNumber, error)
         setButtonState(button, 'error', status, error instanceof Error ? error.message : String(error))

@@ -155,6 +155,7 @@ describe('herkules export', () => {
         expect(fields[1]).toBe('')
         expect(fields[8]).toBe('AB-0001')
         expect(status.textContent).toContain('ohne Nummer')
+        expect(input.hasAttribute('aria-invalid')).toBe(false)
     })
 
     it('a double click with a number exports once', async () => {
