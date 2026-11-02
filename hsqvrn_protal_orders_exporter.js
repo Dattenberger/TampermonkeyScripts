@@ -1,11 +1,14 @@
 // ==UserScript==
 // @name         HusqPortalOrdersExporter V4
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      2.4.8
+// @version      2.4.9
 // @description  Exportiert Bestelldaten via GraphQL mit Multi-Order-Support und Live-Status (Refactored)
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/orders/*
 // @grant        GM_addStyle
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
 // @connect      portal.husqvarnagroup.com
 // @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/hsqvrn_protal_orders_exporter.js
@@ -432,6 +435,41 @@
     // Apply all styles
     Object.values(Styles).forEach(css => GM_addStyle(css));
 
+    // --- local discount factor ---
+    // A purchase condition never goes into this public repository: the user enters it once and
+    // Tampermonkey keeps it in this browser. The menu entry changes it.
+    const FACTOR_KEY = 'husqvarnaDiscountFactor';
+
+    function parseFactor(input) {
+        const text = String(input ?? '').trim();
+        const value = typeof input === 'number' ? input : /^\d*[.,]?\d+$/.test(text) ? Number(text.replace(',', '.')) : NaN;
+        return value > 0 && value <= 1 ? value : null;
+    }
+
+    function readFactor() {
+        return parseFactor(GM_getValue(FACTOR_KEY));
+    }
+
+    function askFactor() {
+        for (;;) {
+            const shown = readFactor();
+            const input = globalThis.prompt(
+                'Skonto-Faktor für Husqvarna (Faktor auf den Netto-Preis).\nWird nur lokal in Tampermonkey gespeichert.',
+                shown === null ? '' : shown.toLocaleString('de-DE', { useGrouping: false, maximumFractionDigits: 20 }),
+            );
+            if (input === null) return null;
+            const value = parseFactor(input);
+            if (value !== null) {
+                GM_setValue(FACTOR_KEY, value);
+                return value;
+            }
+            globalThis.alert('Bitte eine Zahl größer 0 und höchstens 1 eingeben.');
+        }
+    }
+
+    GM_registerMenuCommand('Skonto-Faktor ändern', askFactor);
+    // --- end local discount factor ---
+
     // ============================================================================
     // CONFIGURATION
     // ============================================================================
@@ -439,11 +477,6 @@
     const Config = {
         // Business Logic
         business: {
-            /**
-             * Skonto-Faktor für Husqvarna-Bestellungen (3% Rabatt bei Zahlung innerhalb von 14 Tagen)
-             * Formel: nettoPreis * DISCOUNT_FACTOR = nettoPreis * 0.97 = nettoPreis - (nettoPreis * 0.03)
-             */
-            DISCOUNT_FACTOR: 0.97,
             MAX_MULTI_ORDER_LIMIT: 20 // Maximum number of orders that can be downloaded at once
         },
 
@@ -745,6 +778,9 @@
     function shouldRetryError(error) {
         const message = error.message || '';
 
+        // A missing local setting does not come back with another request
+        if (error.name === 'MissingFactorError') return false;
+
         // The portal named its own failure (e.g. "Error trying to resolve field 'get'.");
         // it is often transient, so it is retried like a server error
         if (error.name === 'PortalGraphQLError') return true;
@@ -884,6 +920,12 @@
      * @returns {Array<Object>} Array of objects formatted for CSV export
      */
     function prepareCsvDataToExport(rows, innerOrderNumber, outerOrderNumber) {
+        const discountFactor = readFactor();
+        if (discountFactor === null) {
+            const error = new Error('Skonto-Faktor fehlt: bitte im Tampermonkey-Menü eintragen.');
+            error.name = 'MissingFactorError';
+            throw error;
+        }
         return rows.map((data) => {
             let vpe = parseInt(Utils.nullSafeMatch(data['Kommentar'], /^D-BE\S*\s*VPE=(\d+)/, 1), 10);
             if (!Number.isFinite(vpe) || vpe < 1) vpe = 1;
@@ -894,7 +936,7 @@
             const totalQuantity = Math.max(1, baseQuantity * vpe);
 
             const totalPrice = data['Gesamt'];
-            const purchasePriceNet = (Number.isFinite(totalPrice) && totalQuantity > 0) ? (totalPrice * Config.business.DISCOUNT_FACTOR / totalQuantity) : NaN;
+            const purchasePriceNet = (Number.isFinite(totalPrice) && totalQuantity > 0) ? (totalPrice * discountFactor / totalQuantity) : NaN;
 
             return {
                 'HAN': (data['Artikelnumer'] || '').replace(/^0+/g, '').replace(/\D+/g, ''),
@@ -1776,6 +1818,7 @@
     }
 
     function initializeScript() {
+        if (readFactor() === null) askFactor();
         // Set up custom order input observer (runs independently)
         setupCustomOrderInputObserver();
 

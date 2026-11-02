@@ -1,11 +1,14 @@
 // ==UserScript==
 // @name         HusqWebOrderOptimizer V2
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      5.0.0
+// @version      5.0.1
 // @description  Dieses Script fügt im Warenkorb der Weborder V2 Einzelpreise hinzu. Skonto wird automatisch mit eingerechnet.
 // @author       Lukas Dattenberger
 // @match        https://supportsites.husqvarnagroup.com/de/web-order/einkaufswagen/*
 // @grant        GM_addStyle
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
 // @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/weborder_v2.js
 // @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/weborder_v2.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js
@@ -15,7 +18,46 @@
 
 (function () {
 
-    const skontoFaktor = 0.97;
+    // --- local discount factor ---
+    // A purchase condition never goes into this public repository: the user enters it once and
+    // Tampermonkey keeps it in this browser. The menu entry changes it.
+    const FACTOR_KEY = 'husqvarnaDiscountFactor';
+
+    function parseFactor(input) {
+        const text = String(input ?? '').trim();
+        const value = typeof input === 'number' ? input : /^\d*[.,]?\d+$/.test(text) ? Number(text.replace(',', '.')) : NaN;
+        return value > 0 && value <= 1 ? value : null;
+    }
+
+    function readFactor() {
+        return parseFactor(GM_getValue(FACTOR_KEY));
+    }
+
+    function askFactor() {
+        for (;;) {
+            const shown = readFactor();
+            const input = globalThis.prompt(
+                'Skonto-Faktor für Husqvarna (Faktor auf den Netto-Preis).\nWird nur lokal in Tampermonkey gespeichert.',
+                shown === null ? '' : shown.toLocaleString('de-DE', { useGrouping: false, maximumFractionDigits: 20 }),
+            );
+            if (input === null) return null;
+            const value = parseFactor(input);
+            if (value !== null) {
+                GM_setValue(FACTOR_KEY, value);
+                return value;
+            }
+            globalThis.alert('Bitte eine Zahl größer 0 und höchstens 1 eingeben.');
+        }
+    }
+
+    GM_registerMenuCommand('Skonto-Faktor ändern', askFactor);
+    // --- end local discount factor ---
+
+    function skontoBetrag(value, fractionDigits = 4) {
+        const factor = readFactor();
+        return factor === null ? '–' : formatNumber(value * factor, fractionDigits);
+    }
+
 
     /**
      * Beobachtet Änderungen am DOM. Bei Änderungen am Wrapperelement der Tabelle wird die Funktion {@link preise} aufgerufen. Änderungen durch z.B. das Hinzufügen und Entfernen von Artikeln sorgt für ein erneutes berechnen aller Einzelpreise und des Skonto Gesamtpreises.
@@ -104,7 +146,7 @@
             const summe = parseNumber(tabelle.find(".total-net-price").text());
             const foot = tabelle.find("tfoot");
             let footerSkontoSumme = foot.find(".einzel-ek-skonto")
-            const footerSkontoSummeText = `EK-Netto inkl. Skonto: ${formatNumber(summe * skontoFaktor, 2)}`;
+            const footerSkontoSummeText = `EK-Netto inkl. Skonto: ${skontoBetrag(summe, 2)}`;
             if (footerSkontoSumme.length === 0) {
                 footerSkontoSumme = jQuery(`<b class="einzel-ek-skonto" style="margin-left: 2em;">${footerSkontoSummeText}</b>`)
                 const zeilenAnzeige = foot.find("td:nth-child(1)");
@@ -145,7 +187,7 @@
             const ekGesamt = parseNumber(zeile.find(checkout ? "td:nth-child(9)" : "td:nth-child(11)").text());
             const vpeText = vpe === 1 ? "" : "<br>(bei VPE=" + vpe + ")"
             einzelEkElement.html(formatNumber((ekGesamt / menge)) + vpeText);
-            einzelEkSkontoElement.html(formatNumber((ekGesamt * skontoFaktor / menge)) + vpeText);
+            einzelEkSkontoElement.html(skontoBetrag(ekGesamt / menge) + vpeText);
 
             //Datum im Format: 20220214
             const lieferdatumHinweis = nullSaveMatch(zeile.find(checkout ? "td:nth-child(12)" : "td:nth-child(15)").text(), /Erwartetes Lieferdatum ist (\d*)/, 1);
@@ -168,7 +210,7 @@
                 Artikelnummer: artikelnummer,
                 Lieferantenbezeichnung: lieferantenbezeichnung,
                 menge: menge,
-                "EK netto": formatNumber((ekGesamt * skontoFaktor / menge)),
+                "EK netto": skontoBetrag(ekGesamt / menge),
                 "Lieferdatum": lieferdatum,
                 "Freiposition": "N"
             })
@@ -189,6 +231,8 @@
 
         if(!updateDownload)
             download.attr('href', 'data:text/plain;charset=utf-8,' + "");
+        else if(readFactor() === null)
+            download.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent("Skonto-Faktor fehlt: bitte im Tampermonkey-Menü eintragen."));
         else if(interneBestellnummern.size > 1)
             download.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent("Zu viele interne Bestellnummern: " + [...interneBestellnummern.values()].join(", ")));
         else
@@ -236,6 +280,7 @@
      * Start
      */
     function start(){
+        if (readFactor() === null) askFactor();
         GM_addStyle(".einzel-ek, .einzel-ek-skonto {width: 90px !important; text-align: right; }" +
             "th[aria-label=\"Kommentar\"] {width: 250px !important;}" +
             ".web-order-modules .cart-container .cart-table td textarea { height: 5.5em;}" +

@@ -1,11 +1,14 @@
 // ==UserScript==
 // @name         HusqPortalCartExporter v1
 // @namespace    https://github.com/Dattenberger/TampermonkeyScripts
-// @version      1.0.1
+// @version      1.0.2
 // @description  This script allows to export cart data into csv file.
 // @author       Lukas Dattenberger
 // @match        https://portal.husqvarnagroup.com/de/checkout/*
 // @grant        GM_addStyle
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
 // @updateURL    https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/hsqvrn_protal_cart_exporter.js
 // @downloadURL  https://raw.githubusercontent.com/Dattenberger/TampermonkeyScripts/main/hsqvrn_protal_cart_exporter.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js
@@ -14,7 +17,41 @@
 
 
 (function () {
-    const discountFactor = 0.97;
+    // --- local discount factor ---
+    // A purchase condition never goes into this public repository: the user enters it once and
+    // Tampermonkey keeps it in this browser. The menu entry changes it.
+    const FACTOR_KEY = 'husqvarnaDiscountFactor';
+
+    function parseFactor(input) {
+        const text = String(input ?? '').trim();
+        const value = typeof input === 'number' ? input : /^\d*[.,]?\d+$/.test(text) ? Number(text.replace(',', '.')) : NaN;
+        return value > 0 && value <= 1 ? value : null;
+    }
+
+    function readFactor() {
+        return parseFactor(GM_getValue(FACTOR_KEY));
+    }
+
+    function askFactor() {
+        for (;;) {
+            const shown = readFactor();
+            const input = globalThis.prompt(
+                'Skonto-Faktor für Husqvarna (Faktor auf den Netto-Preis).\nWird nur lokal in Tampermonkey gespeichert.',
+                shown === null ? '' : shown.toLocaleString('de-DE', { useGrouping: false, maximumFractionDigits: 20 }),
+            );
+            if (input === null) return null;
+            const value = parseFactor(input);
+            if (value !== null) {
+                GM_setValue(FACTOR_KEY, value);
+                return value;
+            }
+            globalThis.alert('Bitte eine Zahl größer 0 und höchstens 1 eingeben.');
+        }
+    }
+
+    GM_registerMenuCommand('Skonto-Faktor ändern', askFactor);
+    // --- end local discount factor ---
+
 
     function tableObserver(tablesSelector, downloadIndex = null) {
         const observer = new MutationObserver(function (mutations, observer) {
@@ -50,6 +87,7 @@
     }
 
     function cartExporter(tablesSelector, downloadCsvIndex = null) {
+        const discountFactor = readFactor();
         const cartsTables = jQuery(tablesSelector);
 
         cartsTables.each(function (index) {
@@ -116,6 +154,8 @@
 
             if (downloadCsvIndex === null) {
                 downloadBtn.attr('href', 'data:text/plain;charset=utf-8,' + "");
+            } else if (discountFactor === null) {
+                downloadBtn.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent("Skonto-Faktor fehlt: bitte im Tampermonkey-Menü eintragen."));
             } else if (internalOrderNumbers.size > 1) {
                 downloadBtn.attr('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent("Zu viele interne Bestellnummern: " + [...internalOrderNumbers.values()].join(", ")));
             } else if (downloadCsvIndex === index) {
@@ -125,6 +165,7 @@
     }
 
     function start() {
+        if (readFactor() === null) askFactor();
         const tablesSelector = `div[data-test="cart"] div[role="table"]`
 
         tableObserver(tablesSelector, null)
